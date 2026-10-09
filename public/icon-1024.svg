@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="ledgerly-grad-1024" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366F1" />
+      <stop offset="100%" stop-color="#4338CA" />
+    </linearGradient>
+    <linearGradient id="growth-accent-1024" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22C55E" />
+      <stop offset="100%" stop-color="#16A34A" />
+    </linearGradient>
+    <filter id="soft-shadow-1024" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="16" stdDeviation="24" flood-color="#4338CA" flood-opacity="0.25" />
+    </filter>
+  </defs>
+
+  <rect x="64" y="64" width="896" height="896" rx="224" fill="url(#ledgerly-grad-1024)" filter="url(#soft-shadow-1024)" />
+
+  <!-- Stylized Open Ledger Book forming 'L' -->
+  <path d="M280 280 C280 256 304 240 328 240 L472 288 C488 292 500 308 500 328 L500 720 C500 744 476 760 452 760 L304 712 C288 708 280 692 280 672 Z" fill="#FFFFFF" fill-opacity="0.95" />
+  <path d="M524 328 C524 308 536 292 552 288 L696 240 C720 240 744 256 744 280 L744 620 C744 640 728 656 708 660 L552 696 C536 700 524 688 524 672 Z" fill="#EEF2FF" fill-opacity="0.85" />
+
+  <!-- Rules -->
+  <path d="M336 360 L452 396" stroke="#6366F1" stroke-width="12" stroke-linecap="round" />
+  <path d="M336 448 L452 484" stroke="#6366F1" stroke-width="12" stroke-linecap="round" />
+  <path d="M336 536 L452 572" stroke="#6366F1" stroke-width="12" stroke-linecap="round" />
+  <path d="M572 400 L688 360" stroke="#818CF8" stroke-width="12" stroke-linecap="round" />
+  <path d="M572 488 L688 448" stroke="#818CF8" stroke-width="12" stroke-linecap="round" />
+
+  <!-- Lower Base of 'L' -->
+  <path d="M280 672 C280 708 308 736 344 736 L720 736 C748 736 768 756 768 784 C768 804 748 820 720 820 L344 820 C264 820 200 756 200 676 L200 320 C200 292 220 272 248 272 C276 272 280 296 280 320 Z" fill="#FFFFFF" />
+
+  <!-- Growth Tick Badge -->
+  <circle cx="752" cy="272" r="88" fill="url(#growth-accent-1024)" filter="url(#soft-shadow-1024)" />
+  <path d="M720 272 L744 296 L792 248" stroke="#FFFFFF" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

@@ -1,0 +1,150 @@
+import React, { useState } from 'react';
+import { useLedgerlyStore } from '../store/useLedgerlyStore';
+import { getTranslation } from '../i18n/translations';
+import { calculatePartyNetBalance } from '../utils/accounting';
+import { formatINR } from '../utils/formatters';
+import { EmptyState } from '../components/common/EmptyState';
+import { Search, UserPlus, Users, Phone, ChevronRight } from 'lucide-react';
+import { PartyType } from '../types';
+
+export const PartiesScreen: React.FC = () => {
+  const parties = useLedgerlyStore((state) => state.parties);
+  const transactions = useLedgerlyStore((state) => state.transactions);
+  const invoices = useLedgerlyStore((state) => state.invoices);
+  const openPartyModal = useLedgerlyStore((state) => state.openPartyModal);
+  const openPartyLedger = useLedgerlyStore((state) => state.openPartyLedger);
+  const language = useLedgerlyStore((state) => state.business.language);
+  const t = getTranslation(language);
+
+  const [search, setSearch] = useState('');
+  const [tab, setTab] = useState<'ALL' | 'CUSTOMERS' | 'SUPPLIERS'>('ALL');
+
+  const filteredParties = parties
+    .filter((p) => !p.isDeleted)
+    .filter((p) => {
+      if (tab === 'CUSTOMERS') return p.type === 'CUSTOMER' || p.type === 'BOTH';
+      if (tab === 'SUPPLIERS') return p.type === 'SUPPLIER' || p.type === 'BOTH';
+      return true;
+    })
+    .filter((p) => {
+      const q = search.toLowerCase();
+      return p.name.toLowerCase().includes(q) || (p.phone && p.phone.includes(q));
+    });
+
+  return (
+    <div className="space-y-3 pb-24 pt-2">
+      {/* Top Search & Add Bar */}
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-secondary" />
+          <input
+            type="text"
+            placeholder="Search party by name or mobile..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-9 pr-4 py-2.5 rounded-2xl bg-white border border-border text-sm text-slate-primary focus:outline-none focus:border-primary shadow-xs"
+          />
+        </div>
+
+        <button
+          type="button"
+          onClick={openPartyModal}
+          className="h-10 px-3.5 rounded-2xl bg-primary hover:bg-primary-hover text-white font-bold text-xs flex items-center gap-1.5 shadow-sm active:scale-95 transition-all flex-shrink-0"
+        >
+          <UserPlus size={16} />
+          <span>Add Party</span>
+        </button>
+      </div>
+
+      {/* Tabs [ All | Customers | Suppliers ] */}
+      <div className="grid grid-cols-3 p-1 bg-white rounded-2xl border border-border">
+        {(
+          [
+            { key: 'ALL', label: 'All Parties' },
+            { key: 'CUSTOMERS', label: 'Customers' },
+            { key: 'SUPPLIERS', label: 'Suppliers' },
+          ] as const
+        ).map((item) => (
+          <button
+            key={item.key}
+            type="button"
+            onClick={() => setTab(item.key)}
+            className={`py-2 rounded-xl text-xs font-bold transition-all text-center ${
+              tab === item.key
+                ? 'bg-primary-light text-primary shadow-xs font-extrabold'
+                : 'text-slate-secondary hover:text-slate-primary'
+            }`}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Parties List */}
+      {filteredParties.length === 0 ? (
+        <EmptyState
+          icon={Users}
+          title={t.noPartiesYet}
+          description="Keep track of credit and khata for customers and suppliers."
+          actionLabel="Add First Party"
+          onAction={openPartyModal}
+        />
+      ) : (
+        <div className="bg-white rounded-card border border-border shadow-card divide-y divide-border overflow-hidden">
+          {filteredParties.map((party) => {
+            const net = calculatePartyNetBalance(party, transactions, invoices);
+
+            return (
+              <div
+                key={party.id}
+                onClick={() => openPartyLedger(party.id)}
+                className="p-3.5 flex items-center justify-between hover:bg-surface-subtle/50 cursor-pointer transition-colors group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-primary-light/70 text-primary font-bold text-sm flex items-center justify-center flex-shrink-0">
+                    {party.name.substring(0, 2).toUpperCase()}
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-primary leading-tight group-hover:text-primary transition-colors">
+                      {party.name}
+                    </h4>
+                    <span className="text-[11px] text-slate-secondary mt-0.5 block">
+                      {party.phone ? `+91 ${party.phone}` : 'No phone'} • {party.type}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="flex flex-col items-end">
+                    {net > 0 ? (
+                      <>
+                        <span className="text-[10px] font-semibold text-moneyIn-dark uppercase">
+                          {t.youWillGet}
+                        </span>
+                        <span className="text-sm font-extrabold text-moneyIn tabular-nums">
+                          {formatINR(net)}
+                        </span>
+                      </>
+                    ) : net < 0 ? (
+                      <>
+                        <span className="text-[10px] font-semibold text-moneyOut-dark uppercase">
+                          {t.youWillGive}
+                        </span>
+                        <span className="text-sm font-extrabold text-moneyOut tabular-nums">
+                          {formatINR(Math.abs(net))}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-xs font-semibold text-slate-muted">Settled (₹0)</span>
+                    )}
+                  </div>
+                  <ChevronRight size={16} className="text-slate-muted group-hover:text-primary transition-colors" />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};

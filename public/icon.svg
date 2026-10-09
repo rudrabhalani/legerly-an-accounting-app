@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="ledgerly-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366F1" />
+      <stop offset="100%" stop-color="#4338CA" />
+    </linearGradient>
+    <linearGradient id="growth-accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22C55E" />
+      <stop offset="100%" stop-color="#16A34A" />
+    </linearGradient>
+    <filter id="soft-shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#4338CA" flood-opacity="0.25" />
+    </filter>
+  </defs>
+
+  <!-- App Icon Base: Rounded Square -->
+  <rect x="32" y="32" width="448" height="448" rx="112" fill="url(#ledgerly-grad)" filter="url(#soft-shadow)" />
+
+  <!-- Open Ledger Pages forming stylized 'L' -->
+  <!-- Left Spine / Page -->
+  <path d="M140 140 C140 128 152 120 164 120 L236 144 C244 146 250 154 250 164 L250 360 C250 372 238 380 226 380 L152 356 C144 354 140 346 140 336 Z" fill="#FFFFFF" fill-opacity="0.95" />
+  
+  <!-- Right Page spreading horizontally into bottom leg of 'L' -->
+  <path d="M262 164 C262 154 268 146 276 144 L348 120 C360 120 372 128 372 140 L372 310 C372 320 364 328 354 330 L276 348 C268 350 262 344 262 336 Z" fill="#EEF2FF" fill-opacity="0.85" />
+
+  <!-- Ledger Grid Ruling lines -->
+  <path d="M168 180 L226 198" stroke="#6366F1" stroke-width="6" stroke-linecap="round" />
+  <path d="M168 224 L226 242" stroke="#6366F1" stroke-width="6" stroke-linecap="round" />
+  <path d="M168 268 L226 286" stroke="#6366F1" stroke-width="6" stroke-linecap="round" />
+
+  <path d="M286 200 L344 180" stroke="#818CF8" stroke-width="6" stroke-linecap="round" />
+  <path d="M286 244 L344 224" stroke="#818CF8" stroke-width="6" stroke-linecap="round" />
+
+  <!-- Extended horizontal shelf of 'L' -->
+  <path d="M140 336 C140 354 154 368 172 368 L360 368 C374 368 384 378 384 392 C384 402 374 410 360 410 L172 410 C132 410 100 378 100 338 L100 160 C100 146 110 136 124 136 C138 136 140 148 140 160 Z" fill="#FFFFFF" />
+
+  <!-- Growth Accent: Vibrant emerald tick / upward coin badge at top right -->
+  <circle cx="376" cy="136" r="44" fill="url(#growth-accent)" filter="url(#soft-shadow)" />
+  <path d="M360 136 L372 148 L396 124" stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 120" width="460" height="120">
+  <defs>
+    <linearGradient id="logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366F1" />
+      <stop offset="100%" stop-color="#4338CA" />
+    </linearGradient>
+    <linearGradient id="growth-accent-logo" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22C55E" />
+      <stop offset="100%" stop-color="#16A34A" />
+    </linearGradient>
+    <filter id="logo-shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#4338CA" flood-opacity="0.2" />
+    </filter>
+  </defs>
+
+  <!-- Left Icon Mark (100x100) -->
+  <g transform="translate(10, 10)">
+    <rect x="0" y="0" width="100" height="100" rx="26" fill="url(#logo-grad)" filter="url(#logo-shadow)" />
+    <!-- Book L glyph -->
+    <path d="M28 26 C28 23 32 21 35 21 L48 25 C50 26 52 28 52 31 L52 72 C52 75 48 77 45 77 L32 73 C30 72 28 70 28 68 Z" fill="#FFFFFF" fill-opacity="0.95" />
+    <path d="M55 31 C55 28 57 26 59 25 L72 21 C75 21 78 23 78 26 L78 63 C78 65 76 67 74 68 L59 72 C57 73 55 71 55 68 Z" fill="#EEF2FF" fill-opacity="0.85" />
+    <!-- Lines -->
+    <path d="M34 35 L46 39" stroke="#6366F1" stroke-width="2" stroke-linecap="round" />
+    <path d="M34 44 L46 48" stroke="#6366F1" stroke-width="2" stroke-linecap="round" />
+    <path d="M34 53 L46 57" stroke="#6366F1" stroke-width="2" stroke-linecap="round" />
+    <path d="M60 40 L72 36" stroke="#818CF8" stroke-width="2" stroke-linecap="round" />
+    <!-- Lower base L shelf -->
+    <path d="M28 68 C28 72 32 75 36 75 L74 75 C77 75 79 77 79 80 C79 82 77 84 74 84 L36 84 C28 84 21 77 21 69 L21 31 C21 28 23 26 26 26 C29 26 28 28 28 31 Z" fill="#FFFFFF" />
+    <!-- Growth tick -->
+    <circle cx="80" cy="24" r="11" fill="url(#growth-accent-logo)" />
+    <path d="M76 24 L79 27 L85 21" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+
+  <!-- Wordmark "Ledgerly" -->
+  <text x="130" y="66" font-family="'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="44" font-weight="700" letter-spacing="-1" fill="#0F172A">
+    Ledger<tspan fill="#4F46E5">ly</tspan>
+  </text>
+  
+  <!-- Tagline -->
+  <text x="132" y="92" font-family="'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="13" font-weight="500" letter-spacing="0.2" fill="#64748B">
+    Simple accounting for everyone
+  </text>
+</svg>
