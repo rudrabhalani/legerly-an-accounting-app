@@ -32,6 +32,7 @@ import { ReconcileModal } from './components/modals/ReconcileModal';
 import { SettingsModal } from './components/modals/SettingsModal';
 import { MultiUserModal } from './components/modals/MultiUserModal';
 import { PeriodCashflowModal } from './components/modals/PeriodCashflowModal';
+import { TransactionDetailModal } from './components/modals/TransactionDetailModal';
 import { ToastSnackbar } from './components/common/ToastSnackbar';
 
 export function App() {
@@ -89,6 +90,7 @@ export function App() {
       <ReconcileModal />
       <SettingsModal />
       <MultiUserModal />
+      <TransactionDetailModal />
       <PartyLedgerScreen />
       <AccountLedgerScreen />
 

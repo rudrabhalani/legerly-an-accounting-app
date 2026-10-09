@@ -153,3 +153,15 @@ export function getCurrentTimeString(): string {
   const minutes = d.getMinutes().toString().padStart(2, '0');
   return `${hours}:${minutes}`;
 }
+
+/**
+ * Formats quantities neatly without trailing zeroes (e.g. 0.5 instead of 0.500, 2 instead of 2.00)
+ */
+export function formatQuantity(qty: number): string {
+  if (isNaN(qty) || qty === 0) return '0';
+  // Round to max 4 decimal places and drop trailing zeroes
+  const rounded = Math.round(qty * 10000) / 10000;
+  return Number(rounded.toFixed(4)).toString();
+}
+
+

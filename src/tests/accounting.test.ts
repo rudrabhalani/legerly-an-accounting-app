@@ -10,7 +10,7 @@ import {
   calculateTotalStockValue,
   calculateProfitAndLoss,
 } from '../utils/accounting';
-import { paiseToRupees, rupeesToPaise, formatINR, formatIndianNumber } from '../utils/formatters';
+import { paiseToRupees, rupeesToPaise, formatINR, formatIndianNumber, formatQuantity } from '../utils/formatters';
 import { Account, Party, Transaction, Invoice, Item, StockMovement } from '../types';
 
 describe('Formatters and Integer Paise Arithmetic', () => {
@@ -32,6 +32,15 @@ describe('Formatters and Integer Paise Arithmetic', () => {
     expect(formatINR(12500000, { showSign: true, type: 'IN' })).toBe('+₹1,25,000');
     expect(formatINR(7500000, { showSign: true, type: 'OUT' })).toBe('−₹75,000');
     expect(formatINR(4950, { showPaisa: true })).toBe('₹49.50');
+  });
+
+  it('formats decimal quantities neatly without trailing zeroes', () => {
+    expect(formatQuantity(0.5)).toBe('0.5');
+    expect(formatQuantity(1.5)).toBe('1.5');
+    expect(formatQuantity(1)).toBe('1');
+    expect(formatQuantity(2.75)).toBe('2.75');
+    expect(formatQuantity(0.005)).toBe('0.005');
+    expect(formatQuantity(0)).toBe('0');
   });
 });
 
@@ -379,6 +388,37 @@ describe('GST Calculation Engine & Number to Words', () => {
     expect(result.rowTotalPaise).toBe(10000); // ₹100
   });
 
+  it('calculates fractional decimal quantities accurately (e.g. 0.5 kg at ₹40)', async () => {
+    const { calculateLineGST } = await import('../utils/gstCalc');
+    // 0.5 kg at ₹40/kg without GST = ₹20 (2000 paise)
+    const resultNoGst = calculateLineGST({
+      qty: 0.5,
+      ratePaise: 4000, // ₹40
+      taxPercent: 0,
+      withGst: false,
+    });
+    expect(resultNoGst.grossPaise).toBe(2000);
+    expect(resultNoGst.rowTotalPaise).toBe(2000);
+
+    // 1.5 kg at ₹100/kg with 18% GST (intra-state: 9% CGST + 9% SGST)
+    const resultWithGst = calculateLineGST({
+      qty: 1.5,
+      ratePaise: 10000, // ₹100
+      taxPercent: 18,
+      taxIncluded: false,
+      withGst: true,
+      isInterState: false,
+    });
+    // Gross = 1.5 * 100 = ₹150 (15000 paise)
+    expect(resultWithGst.grossPaise).toBe(15000);
+    expect(resultWithGst.taxableAmountPaise).toBe(15000);
+    // 18% of 150 = ₹27 (2700 paise)
+    expect(resultWithGst.taxPaise).toBe(2700);
+    expect(resultWithGst.cgstPaise).toBe(1350);
+    expect(resultWithGst.sgstPaise).toBe(1350);
+    expect(resultWithGst.rowTotalPaise).toBe(17700); // ₹177
+  });
+
   it('converts Rupee numbers into Indian words', async () => {
     const { numberToIndianWords } = await import('../utils/gstCalc');
     expect(numberToIndianWords(125000)).toBe('Rupees One Lakh Twenty-Five Thousand Only');
@@ -481,5 +521,139 @@ describe('Mobile Contact Normalization & Statement Details', () => {
     expect(invEntry.description).toContain('Truck Transport to Site 4');
   });
 });
+
+describe('Store: Auto-Save Items & Transaction Details Modal', () => {
+  it('automatically creates new items in item catalog when saving an invoice', async () => {
+    const { useLedgerlyStore } = await import('../store/useLedgerlyStore');
+    const store = useLedgerlyStore.getState();
+
+    let testParty = store.parties[0];
+    if (!testParty) {
+      testParty = store.addParty({
+        name: 'Auto-Item Test Party',
+        phone: '9876543210',
+        type: 'CUSTOMER',
+        openingBalance: 0,
+        openingType: 'RECEIVABLE',
+      });
+    }
+
+    let testAccount = useLedgerlyStore.getState().accounts[0];
+    if (!testAccount) {
+      const mockAcc: Account = {
+        id: 'acc-cash-test',
+        type: 'CASH',
+        nickname: 'Main Cash',
+        openingBalance: 1000000,
+        currentBalance: 1000000,
+      };
+      useLedgerlyStore.setState((state) => ({ accounts: [mockAcc, ...state.accounts] }));
+      testAccount = mockAcc;
+    }
+
+    const initialItemCount = useLedgerlyStore.getState().items.length;
+
+    const newInvoice: Omit<Invoice, 'id' | 'createdAt' | 'updatedAt' | 'isDeleted'> = {
+      number: 'INV/TEST/AUTO-001',
+      type: 'SALE',
+      date: '2026-10-10',
+      dueDate: '2026-10-15',
+      partyId: testParty.id,
+      partyName: testParty.name,
+      lines: [
+        {
+          id: 'temp-1',
+          itemId: 'test-item-1',
+          itemName: 'Organic Almond Milk 1L',
+          unit: 'ltr',
+          qty: 2.5,
+          rate: 18000, // ₹180
+          discountPercent: 0,
+          taxPercent: 5,
+          taxIncluded: false,
+          taxableAmount: 45000,
+          cgst: 1125,
+          sgst: 1125,
+          igst: 0,
+          amount: 47250,
+          itemType: 'PRODUCT',
+        },
+        {
+          id: 'temp-2',
+          itemId: 'test-item-2',
+          itemName: 'Delivery & Setup Service',
+          unit: 'service',
+          qty: 1,
+          rate: 25000, // ₹250
+          discountPercent: 0,
+          taxPercent: 18,
+          taxIncluded: false,
+          taxableAmount: 25000,
+          cgst: 2250,
+          sgst: 2250,
+          igst: 0,
+          amount: 29500,
+          itemType: 'SERVICE',
+        },
+      ],
+      subtotal: 70000,
+      discountTotal: 0,
+      taxableAmount: 70000,
+      cgstTotal: 3375,
+      sgstTotal: 3375,
+      igstTotal: 0,
+      taxTotal: 6750,
+      extraCharges: 0,
+      roundOff: 0,
+      total: 76750,
+      paidAmount: 76750,
+      status: 'PAID',
+      paymentType: 'CASH',
+      accountId: testAccount.id,
+      withGst: true,
+    };
+
+    const result = store.atomicSaveInvoice(newInvoice);
+    expect(result.invoice.id).toBeDefined();
+
+    const updatedState = useLedgerlyStore.getState();
+    // The items catalog should have expanded by 2
+    expect(updatedState.items.length).toBe(initialItemCount + 2);
+
+    const savedProduct = updatedState.items.find(i => i.name.toLowerCase() === 'organic almond milk 1l');
+    expect(savedProduct).toBeDefined();
+    expect(savedProduct?.unit).toBe('ltr');
+    expect(savedProduct?.salePrice).toBe(18000);
+    expect(savedProduct?.itemType).toBe('PRODUCT');
+
+    const savedService = updatedState.items.find(i => i.name.toLowerCase() === 'delivery & setup service');
+    expect(savedService).toBeDefined();
+    expect(savedService?.unit).toBe('service');
+    expect(savedService?.itemType).toBe('SERVICE');
+  });
+
+  it('opens and closes transaction detail modal correctly', async () => {
+    const { useLedgerlyStore } = await import('../store/useLedgerlyStore');
+    const store = useLedgerlyStore.getState();
+
+    expect(store.isTransactionDetailOpen).toBe(false);
+
+    // If there is any transaction, test opening it
+    if (store.transactions.length > 0) {
+      const txn = store.transactions[0];
+      store.openTransactionDetail(txn.id);
+
+      const openState = useLedgerlyStore.getState();
+      expect(openState.isTransactionDetailOpen).toBe(true);
+      expect(openState.selectedTransactionForDetail?.id).toBe(txn.id);
+
+      store.closeTransactionDetail();
+      const closedState = useLedgerlyStore.getState();
+      expect(closedState.isTransactionDetailOpen).toBe(false);
+      expect(closedState.selectedTransactionForDetail).toBeNull();
+    }
+  });
+});
+
 
 

@@ -25,6 +25,7 @@ export const PartyLedgerScreen: React.FC = () => {
   const business = useLedgerlyStore((state) => state.business);
   const openMoneyIn = useLedgerlyStore((state) => state.openMoneyIn);
   const openMoneyOut = useLedgerlyStore((state) => state.openMoneyOut);
+  const openTransactionDetail = useLedgerlyStore((state) => state.openTransactionDetail);
 
   const [filterType, setFilterType] = useState<'ALL' | 'IN' | 'OUT' | 'INVOICES'>('ALL');
 
@@ -207,10 +208,13 @@ export const PartyLedgerScreen: React.FC = () => {
           return (
             <div
               key={entry.id}
-              className="p-3.5 bg-white rounded-2xl border border-border shadow-card flex items-start justify-between gap-3 hover:bg-surface-subtle/30 transition-colors"
+              onClick={() => openTransactionDetail(entry.refId, entry.refId)}
+              className="p-3.5 bg-white rounded-2xl border border-border hover:border-blue-400 shadow-card flex items-start justify-between gap-3 hover:bg-surface-subtle/30 transition-all cursor-pointer group"
+              title="Click to view complete transaction details"
             >
               <div className="flex flex-col min-w-0 flex-1">
-                <span className="text-xs font-bold text-slate-primary leading-snug">
+                {/* Title text larger than amount */}
+                <span className="text-sm sm:text-base font-bold text-slate-primary leading-snug group-hover:text-primary transition-colors">
                   {title}
                 </span>
 

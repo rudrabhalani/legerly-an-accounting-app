@@ -24,7 +24,7 @@ export type InvoiceType =
 
 export type InvoiceStatus = 'PAID' | 'PARTIAL' | 'UNPAID';
 
-export type UnitType = 'pcs' | 'kg' | 'litre' | 'box' | 'meter' | 'packet' | 'dozen';
+export type UnitType = 'pcs' | 'kg' | 'g' | 'litre' | 'ml' | 'box' | 'meter' | 'packet' | 'dozen' | 'hour' | 'day' | string;
 
 export type StockDirection = 'IN' | 'OUT';
 
@@ -114,6 +114,7 @@ export interface Item {
   id: string;
   name: string;
   category: string;
+  itemType?: 'PRODUCT' | 'SERVICE';
   unit: UnitType;
   salePrice: number; // in paise
   purchasePrice: number; // in paise
@@ -133,6 +134,7 @@ export interface InvoiceLine {
   id: string;
   itemId: string;
   itemName: string;
+  itemType?: 'PRODUCT' | 'SERVICE';
   unit: UnitType;
   qty: number;
   rate: number; // in paise

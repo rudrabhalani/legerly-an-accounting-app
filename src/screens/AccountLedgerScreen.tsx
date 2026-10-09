@@ -13,6 +13,7 @@ export const AccountLedgerScreen: React.FC = () => {
   const openMoneyOut = useLedgerlyStore((state) => state.openMoneyOut);
   const openTransferModal = useLedgerlyStore((state) => state.openTransferModal);
   const openReconcileModal = useLedgerlyStore((state) => state.openReconcileModal);
+  const openTransactionDetail = useLedgerlyStore((state) => state.openTransactionDetail);
 
   const [filterType, setFilterType] = useState<'ALL' | 'IN' | 'OUT' | 'TRANSFER'>('ALL');
 
@@ -104,10 +105,14 @@ export const AccountLedgerScreen: React.FC = () => {
         {ledger.map((entry) => (
           <div
             key={entry.id}
-            className="p-3 bg-white rounded-2xl border border-border shadow-card flex items-center justify-between"
+            onClick={() => openTransactionDetail(entry.refId, entry.refId)}
+            className="p-3 bg-white rounded-2xl border border-border hover:border-blue-400 shadow-card flex items-center justify-between cursor-pointer group transition-all"
+            title="Click to view complete transaction details"
           >
             <div className="flex flex-col">
-              <span className="text-xs font-bold text-slate-primary">{entry.description}</span>
+              <span className="text-sm font-bold text-slate-primary group-hover:text-primary transition-colors">
+                {entry.description}
+              </span>
               <span className="text-[11px] text-slate-secondary mt-0.5">
                 {entry.date} {entry.time ? `• ${entry.time}` : ''} {entry.paymentMode ? `(${entry.paymentMode})` : ''}
               </span>

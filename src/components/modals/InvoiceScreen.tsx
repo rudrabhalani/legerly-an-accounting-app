@@ -41,6 +41,20 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
+const UNIT_OPTIONS: { id: UnitType; label: string }[] = [
+  { id: 'pcs', label: 'Pcs' },
+  { id: 'kg', label: 'Kg' },
+  { id: 'g', label: 'Grams (g)' },
+  { id: 'litre', label: 'Litre' },
+  { id: 'ml', label: 'ml' },
+  { id: 'box', label: 'Box' },
+  { id: 'meter', label: 'Meter' },
+  { id: 'packet', label: 'Packet' },
+  { id: 'dozen', label: 'Dozen' },
+  { id: 'hour', label: 'Hour' },
+  { id: 'day', label: 'Day' },
+];
+
 export const InvoiceScreen: React.FC = () => {
   const isInvoiceScreenOpen = useLedgerlyStore((state) => state.isInvoiceScreenOpen);
   const closeInvoiceScreen = useLedgerlyStore((state) => state.closeInvoiceScreen);
@@ -59,6 +73,7 @@ export const InvoiceScreen: React.FC = () => {
   const canEditDelete = useLedgerlyStore((state) => state.canCurrentUserEditDelete());
 
   const [partySearchTerm, setPartySearchTerm] = useState('');
+  const [activeDropdownLineId, setActiveDropdownLineId] = useState<string | null>(null);
 
   // Invoice Mode
   const [type, setType] = useState<InvoiceType>(mode || 'SALE');
@@ -227,19 +242,27 @@ export const InvoiceScreen: React.FC = () => {
   const selectedParty = parties.find((p) => p.id === partyId);
 
   // Line item helpers
-  const handleAddLine = () => {
-    if (items.length === 0) {
-      setShowQuickItemModal(true);
-      return;
-    }
-    const it = items[0];
-    const initialRate = type === 'SALE' ? it.salePrice : it.purchasePrice;
+  const handleAddLine = (customItem?: Partial<InvoiceLine>) => {
+    const defaultItem = items.find((i) => !i.isDeleted);
+    const initialName = customItem?.itemName || defaultItem?.name || '';
+    const initialRate =
+      customItem?.rate !== undefined
+        ? customItem.rate
+        : defaultItem
+        ? type === 'SALE'
+          ? defaultItem.salePrice
+          : defaultItem.purchasePrice
+        : rupeesToPaise(100);
+    const initialUnit = customItem?.unit || defaultItem?.unit || 'pcs';
+    const initialTax =
+      customItem?.taxPercent !== undefined ? customItem.taxPercent : defaultItem?.taxPercent || 0;
+
     const calc = calculateLineGST({
-      qty: 1,
+      qty: customItem?.qty || 1,
       ratePaise: initialRate,
       discountType: 'PERCENT',
       discountPercent: 0,
-      taxPercent: it.taxPercent,
+      taxPercent: initialTax,
       taxIncluded: false,
       withGst,
       isInterState,
@@ -247,24 +270,38 @@ export const InvoiceScreen: React.FC = () => {
 
     const newLine: InvoiceLine = {
       id: `line-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
-      itemId: it.id,
-      itemName: it.name,
-      unit: it.unit,
-      qty: 1,
+      itemId: defaultItem ? defaultItem.id : `item-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
+      itemName: initialName,
+      itemType: customItem?.itemType || defaultItem?.itemType || 'PRODUCT',
+      unit: initialUnit,
+      qty: customItem?.qty || 1,
       rate: initialRate,
       discountPercent: 0,
       discountType: 'PERCENT',
       discountAmount: 0,
-      taxPercent: it.taxPercent,
+      taxPercent: initialTax,
       taxIncluded: false,
       taxableAmount: calc.taxableAmountPaise,
       cgst: calc.cgstPaise,
       sgst: calc.sgstPaise,
       igst: calc.igstPaise,
       amount: calc.rowTotalPaise,
-      hsn: it.hsn,
+      hsn: defaultItem?.hsn || '',
     };
     setLines([...lines, newLine]);
+  };
+
+  const handleSelectSavedItem = (lineId: string, savedItem: Item) => {
+    handleUpdateLine(lineId, {
+      itemId: savedItem.id,
+      itemName: savedItem.name,
+      itemType: savedItem.itemType || 'PRODUCT',
+      unit: savedItem.unit,
+      rate: type === 'SALE' ? savedItem.salePrice : savedItem.purchasePrice,
+      taxPercent: savedItem.taxPercent,
+      hsn: savedItem.hsn,
+    });
+    setActiveDropdownLineId(null);
   };
 
   const handleUpdateLine = (id: string, updates: Partial<InvoiceLine>) => {
@@ -281,6 +318,7 @@ export const InvoiceScreen: React.FC = () => {
             updated.rate = type === 'SALE' ? matched.salePrice : matched.purchasePrice;
             updated.taxPercent = matched.taxPercent;
             updated.hsn = matched.hsn;
+            updated.itemType = matched.itemType || 'PRODUCT';
           }
         }
 
@@ -306,6 +344,7 @@ export const InvoiceScreen: React.FC = () => {
       })
     );
   };
+
 
   const handleRemoveLine = (id: string) => {
     setLines(lines.filter((l) => l.id !== id));
@@ -490,10 +529,11 @@ export const InvoiceScreen: React.FC = () => {
       paymentMode: mappedPaymentMode,
       accountId: resolvedAccountId,
       status: invoiceStatus,
-      notes: notes.trim() || undefined,
-      terms: terms.trim() || undefined,
+      notes: undefined,
+      terms: 'Standard terms apply. Goods once sold are subject to business policy.',
       lines,
     };
+
   };
 
   const handleSave = async (andNew: boolean = false, andShare: boolean = false) => {
@@ -639,31 +679,7 @@ export const InvoiceScreen: React.FC = () => {
 
         {/* SCROLLABLE FORM BODY */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
-          {/* SECTION 1: TYPE SELECTOR TABS */}
-          <div className="grid grid-cols-4 gap-1.5 p-1 bg-surface-subtle rounded-2xl border border-border">
-            {[
-              { id: 'SALE', label: 'Sale Invoice', activeColor: 'bg-moneyIn text-white' },
-              { id: 'PURCHASE', label: 'Purchase Bill', activeColor: 'bg-moneyOut text-white' },
-              { id: 'SALE_RETURN', label: 'Sale Return', activeColor: 'bg-amber-500 text-white' },
-              { id: 'PURCHASE_RETURN', label: 'Purchase Return', activeColor: 'bg-purple-600 text-white' },
-            ].map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => {
-                  setType(t.id as InvoiceType);
-                  setInvoiceNumber(generateNextNumber(t.id as InvoiceType));
-                }}
-                className={`py-2 rounded-xl text-xs font-bold transition-all ${
-                  type === t.id ? t.activeColor : 'text-slate-secondary hover:text-slate-primary'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-
-          {/* SECTION 2: HEADER DETAILS (Party, Number, Dates, State) */}
+          {/* SECTION 1: HEADER DETAILS (Party, Number, Dates, State) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 bg-surface-subtle/40 p-4 rounded-2xl border border-border">
             {/* Party Picker */}
             <div className="sm:col-span-2 space-y-1.5">
@@ -809,7 +825,7 @@ export const InvoiceScreen: React.FC = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={handleAddLine}
+                  onClick={() => handleAddLine()}
                   className="px-3 py-1 rounded-lg text-xs font-bold text-white bg-primary hover:bg-primary-hover flex items-center gap-1 transition-all shadow-xs"
                 >
                   <Plus size={13} />
@@ -824,7 +840,7 @@ export const InvoiceScreen: React.FC = () => {
                 <p className="text-xs font-semibold text-slate-secondary">No item rows added yet</p>
                 <button
                   type="button"
-                  onClick={handleAddLine}
+                  onClick={() => handleAddLine()}
                   className="px-4 py-2 rounded-xl text-xs font-bold bg-primary text-white"
                 >
                   Add First Item
@@ -836,30 +852,113 @@ export const InvoiceScreen: React.FC = () => {
                   const it = items.find((i) => i.id === line.itemId);
                   const isStockLow = it && it.currentStock <= (it.minStock || 0);
 
+                  const filteredSavedItems = items
+                    .filter((i) => !i.isDeleted)
+                    .filter((i) => {
+                      if (!line.itemName.trim()) return true;
+                      return i.name.toLowerCase().includes(line.itemName.toLowerCase());
+                    });
+
                   return (
                     <div
                       key={line.id}
-                      className="p-3.5 rounded-2xl border border-border bg-white shadow-xs space-y-3"
+                      className="p-3 sm:p-3.5 rounded-2xl border border-border bg-white shadow-xs space-y-2.5"
                     >
-                      {/* Top Row: Item Picker, HSN, Remove */}
+                      {/* Top Row: Row #, Item Name & Dropdown, Product/Service badge, Delete */}
                       <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 flex-1">
+                        <div className="flex items-center gap-2 flex-1 relative">
                           <span className="w-6 h-6 rounded-lg bg-surface-subtle text-slate-primary font-bold text-xs flex items-center justify-center flex-shrink-0">
                             {idx + 1}
                           </span>
-                          <select
-                            value={line.itemId}
-                            onChange={(e) => handleUpdateLine(line.id, { itemId: e.target.value })}
-                            className="flex-1 h-9 px-2.5 rounded-xl border border-border bg-white text-xs font-bold text-slate-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+
+                          <div className="relative flex-1">
+                            <input
+                              type="text"
+                              value={line.itemName}
+                              placeholder="Type or search item / service name..."
+                              onFocus={() => setActiveDropdownLineId(line.id)}
+                              onChange={(e) => {
+                                handleUpdateLine(line.id, { itemName: e.target.value });
+                                setActiveDropdownLineId(line.id);
+                              }}
+                              className="w-full h-9 px-3 rounded-xl border border-border bg-white text-sm sm:text-base font-bold text-slate-primary focus:outline-none focus:border-primary shadow-xs"
+                            />
+
+                            {/* Searchable Dropdown for Saved Items & Services */}
+                            {activeDropdownLineId === line.id && (
+                              <div className="absolute left-0 right-0 top-full mt-1 z-40 bg-white rounded-xl shadow-floating border border-border max-h-52 overflow-y-auto divide-y divide-border animate-in fade-in duration-100">
+                                {filteredSavedItems.length > 0 && (
+                                  <div className="p-1 bg-surface-subtle text-[10px] font-bold text-slate-secondary uppercase px-2">
+                                    Saved Items & Services ({filteredSavedItems.length})
+                                  </div>
+                                )}
+
+                                {filteredSavedItems.map((savedItem) => (
+                                  <div
+                                    key={savedItem.id}
+                                    onMouseDown={(e) => {
+                                      e.preventDefault();
+                                      handleSelectSavedItem(line.id, savedItem);
+                                    }}
+                                    className="p-2 sm:p-2.5 hover:bg-surface-subtle cursor-pointer flex items-center justify-between text-xs transition-colors"
+                                  >
+                                    <div>
+                                      <span className="font-bold text-slate-primary block leading-tight">
+                                        {savedItem.name}
+                                      </span>
+                                      <span className="text-[10px] text-slate-secondary">
+                                        {savedItem.itemType || 'PRODUCT'} • Stock: {savedItem.currentStock} {savedItem.unit}
+                                      </span>
+                                    </div>
+                                    <div className="text-right flex-shrink-0">
+                                      <span className="font-bold text-primary block">
+                                        ₹{paiseToRupees(type === 'SALE' ? savedItem.salePrice : savedItem.purchasePrice).toFixed(2)}
+                                      </span>
+                                      <span className="text-[10px] text-slate-secondary">
+                                        per {savedItem.unit}
+                                      </span>
+                                    </div>
+                                  </div>
+                                ))}
+
+                                {line.itemName.trim() &&
+                                  !items.some(
+                                    (i) =>
+                                      !i.isDeleted &&
+                                      i.name.trim().toLowerCase() === line.itemName.trim().toLowerCase()
+                                  ) && (
+                                    <div
+                                      onMouseDown={(e) => {
+                                        e.preventDefault();
+                                        setActiveDropdownLineId(null);
+                                      }}
+                                      className="p-2.5 bg-blue-50/70 hover:bg-blue-100/70 text-blue-700 cursor-pointer flex items-center justify-between text-xs font-bold"
+                                    >
+                                      <span>+ Auto-save new item: "{line.itemName.trim()}"</span>
+                                      <span className="text-[10px] font-normal text-blue-600">Saved on submit</span>
+                                    </div>
+                                  )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Product vs Service Distinction Badge */}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleUpdateLine(line.id, {
+                                itemType: line.itemType === 'SERVICE' ? 'PRODUCT' : 'SERVICE',
+                              })
+                            }
+                            className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase transition-all flex-shrink-0 ${
+                              line.itemType === 'SERVICE'
+                                ? 'bg-purple-100 text-purple-800 border border-purple-200'
+                                : 'bg-blue-50 text-blue-700 border border-blue-200'
+                            }`}
+                            title="Click to toggle between Product and Service"
                           >
-                            {items
-                              .filter((i) => !i.isDeleted)
-                              .map((i) => (
-                                <option key={i.id} value={i.id}>
-                                  {i.name} (Stock: {i.currentStock} {i.unit})
-                                </option>
-                              ))}
-                          </select>
+                            {line.itemType || 'PRODUCT'}
+                          </button>
                         </div>
 
                         {line.hsn && (
@@ -871,52 +970,73 @@ export const InvoiceScreen: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handleRemoveLine(line.id)}
-                          className="p-1.5 rounded-lg text-slate-muted hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                          className="p-1.5 rounded-lg text-slate-muted hover:text-rose-600 hover:bg-rose-50 transition-colors flex-shrink-0"
                           title="Remove item"
                         >
                           <Trash2 size={16} />
                         </button>
                       </div>
 
-                      {/* Middle Row: Qty, Unit, Rate, Discount, GST */}
-                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1 border-t border-border/60">
-                        {/* Qty & Unit */}
-                        <div className="space-y-1">
-                          <label className="text-[11px] font-semibold text-slate-secondary">Qty & Unit</label>
-                          <div className="flex items-center gap-1">
-                            <input
-                              type="number"
-                              min="0.01"
-                              step="any"
-                              value={line.qty}
-                              onChange={(e) =>
-                                handleUpdateLine(line.id, { qty: Math.max(0.01, parseFloat(e.target.value) || 0) })
-                              }
-                              className="w-16 h-8 px-2 rounded-lg border border-border bg-white text-xs font-bold text-center"
-                            />
-                            <span className="text-xs text-slate-secondary font-bold uppercase">{line.unit}</span>
-                          </div>
+                      {/* Compact Inputs Row: Qty, Unit, Rate, Discount, GST, Row Total */}
+                      <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 pt-1 border-t border-border/60 items-end">
+                        {/* Decimal Quantity */}
+                        <div className="space-y-0.5">
+                          <label className="text-[10px] font-bold text-slate-secondary uppercase">
+                            Qty (e.g. 0.5)
+                          </label>
+                          <input
+                            type="number"
+                            min="0.0001"
+                            step="any"
+                            inputMode="decimal"
+                            value={line.qty}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value);
+                              handleUpdateLine(line.id, { qty: isNaN(val) ? 0 : val });
+                            }}
+                            className="w-full h-8 px-2 rounded-lg border border-border bg-white text-xs font-bold text-center focus:outline-none focus:border-primary"
+                          />
                         </div>
 
-                        {/* Rate */}
-                        <div className="space-y-1">
-                          <label className="text-[11px] font-semibold text-slate-secondary">Unit Rate (₹)</label>
+                        {/* Unit Selector */}
+                        <div className="space-y-0.5">
+                          <label className="text-[10px] font-bold text-slate-secondary uppercase">Unit</label>
+                          <select
+                            value={line.unit}
+                            onChange={(e) => handleUpdateLine(line.id, { unit: e.target.value as UnitType })}
+                            className="w-full h-8 px-2 rounded-lg border border-border bg-white text-xs font-semibold focus:outline-none focus:border-primary"
+                          >
+                            {UNIT_OPTIONS.map((u) => (
+                              <option key={u.id} value={u.id}>
+                                {u.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Unit Rate */}
+                        <div className="space-y-0.5">
+                          <label className="text-[10px] font-bold text-slate-secondary uppercase">
+                            Rate (₹)
+                          </label>
                           <input
                             type="number"
                             min="0"
                             step="any"
+                            inputMode="decimal"
                             value={paiseToRupees(line.rate)}
-                            onChange={(e) =>
-                              handleUpdateLine(line.id, { rate: rupeesToPaise(parseFloat(e.target.value) || 0) })
-                            }
-                            className="w-full h-8 px-2 rounded-lg border border-border bg-white text-xs font-bold"
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value);
+                              handleUpdateLine(line.id, { rate: isNaN(val) ? 0 : rupeesToPaise(val) });
+                            }}
+                            className="w-full h-8 px-2 rounded-lg border border-border bg-white text-xs font-bold focus:outline-none focus:border-primary"
                           />
                         </div>
 
                         {/* Discount */}
-                        <div className="space-y-1">
+                        <div className="space-y-0.5">
                           <div className="flex items-center justify-between">
-                            <label className="text-[11px] font-semibold text-slate-secondary">Discount</label>
+                            <label className="text-[10px] font-bold text-slate-secondary uppercase">Disc</label>
                             <button
                               type="button"
                               onClick={() =>
@@ -924,7 +1044,7 @@ export const InvoiceScreen: React.FC = () => {
                                   discountType: line.discountType === 'FLAT' ? 'PERCENT' : 'FLAT',
                                 })
                               }
-                              className="text-[10px] text-primary font-bold hover:underline"
+                              className="text-[9px] text-primary font-bold hover:underline"
                             >
                               {line.discountType === 'FLAT' ? '₹ Flat' : '% Pct'}
                             </button>
@@ -933,13 +1053,15 @@ export const InvoiceScreen: React.FC = () => {
                             <input
                               type="number"
                               min="0"
+                              step="any"
+                              inputMode="decimal"
                               value={paiseToRupees(line.discountAmount || 0)}
                               onChange={(e) =>
                                 handleUpdateLine(line.id, {
                                   discountAmount: rupeesToPaise(parseFloat(e.target.value) || 0),
                                 })
                               }
-                              className="w-full h-8 px-2 rounded-lg border border-border bg-white text-xs font-bold"
+                              className="w-full h-8 px-2 rounded-lg border border-border bg-white text-xs font-bold focus:outline-none focus:border-primary"
                               placeholder="₹ disc"
                             />
                           ) : (
@@ -947,28 +1069,30 @@ export const InvoiceScreen: React.FC = () => {
                               type="number"
                               min="0"
                               max="100"
+                              step="any"
+                              inputMode="decimal"
                               value={line.discountPercent || ''}
                               onChange={(e) =>
                                 handleUpdateLine(line.id, {
                                   discountPercent: parseFloat(e.target.value) || 0,
                                 })
                               }
-                              className="w-full h-8 px-2 rounded-lg border border-border bg-white text-xs font-bold"
+                              className="w-full h-8 px-2 rounded-lg border border-border bg-white text-xs font-bold focus:outline-none focus:border-primary"
                               placeholder="% disc"
                             />
                           )}
                         </div>
 
                         {/* GST % (if with GST) */}
-                        {withGst && (
-                          <div className="space-y-1">
-                            <label className="text-[11px] font-semibold text-slate-secondary">GST %</label>
+                        {withGst ? (
+                          <div className="space-y-0.5">
+                            <label className="text-[10px] font-bold text-slate-secondary uppercase">GST %</label>
                             <select
                               value={line.taxPercent}
                               onChange={(e) =>
                                 handleUpdateLine(line.id, { taxPercent: parseFloat(e.target.value) || 0 })
                               }
-                              className="w-full h-8 px-2 rounded-lg border border-border bg-white text-xs font-bold"
+                              className="w-full h-8 px-2 rounded-lg border border-border bg-white text-xs font-bold focus:outline-none focus:border-primary"
                             >
                               {[0, 0.25, 3, 5, 12, 18, 28].map((pct) => (
                                 <option key={pct} value={pct}>
@@ -977,14 +1101,16 @@ export const InvoiceScreen: React.FC = () => {
                               ))}
                             </select>
                           </div>
+                        ) : (
+                          <div className="hidden sm:block" />
                         )}
 
                         {/* Line Total */}
-                        <div className="space-y-1 flex flex-col justify-end items-end col-span-2 sm:col-span-1">
-                          <span className="text-[10px] text-slate-secondary uppercase tracking-wider font-bold">
+                        <div className="space-y-0.5 text-right">
+                          <span className="text-[10px] text-slate-secondary uppercase tracking-wider font-bold block">
                             Total
                           </span>
-                          <span className="text-sm font-extrabold text-slate-primary">
+                          <span className="text-xs sm:text-sm font-extrabold text-slate-primary tabular-nums block h-8 flex items-center justify-end">
                             {formatINR(line.amount)}
                           </span>
                         </div>
@@ -1000,7 +1126,7 @@ export const InvoiceScreen: React.FC = () => {
                               onChange={(e) => handleUpdateLine(line.id, { taxIncluded: e.target.checked })}
                               className="w-3.5 h-3.5 rounded text-primary focus:ring-primary"
                             />
-                            <span>Rate includes GST (tax-inclusive pricing)</span>
+                            <span>Rate includes GST (tax-inclusive)</span>
                           </label>
 
                           <div className="flex items-center gap-3 text-[10px]">
@@ -1019,6 +1145,7 @@ export const InvoiceScreen: React.FC = () => {
                   );
                 })}
               </div>
+
             )}
           </div>
 
@@ -1031,34 +1158,16 @@ export const InvoiceScreen: React.FC = () => {
                 <input
                   type="number"
                   min="0"
+                  step="any"
+                  inputMode="decimal"
                   value={extraChargesStr}
                   onChange={(e) => setExtraChargesStr(e.target.value)}
                   className="w-full h-10 px-3 rounded-xl border border-border bg-white text-sm font-semibold"
                   placeholder="0"
                 />
               </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-primary">Notes / Remarks</label>
-                <input
-                  type="text"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="w-full h-10 px-3 rounded-xl border border-border bg-white text-xs"
-                  placeholder="Optional note for invoice"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-primary">Terms & Conditions</label>
-                <textarea
-                  rows={2}
-                  value={terms}
-                  onChange={(e) => setTerms(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-border bg-white text-xs"
-                />
-              </div>
             </div>
+
 
             {/* Right: Calculations breakdown card */}
             <div className="p-4 rounded-2xl bg-surface-subtle border border-border space-y-2.5">

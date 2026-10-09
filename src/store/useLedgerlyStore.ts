@@ -93,6 +93,9 @@ interface LedgerlyState {
   isFinancialYearModalOpen: boolean;
   isDeleteYearModalOpen: boolean;
   isPeriodCashflowOpen: boolean;
+  isTransactionDetailOpen: boolean;
+  selectedTransactionForDetail: Transaction | null;
+  selectedInvoiceForDetail: Invoice | null;
   selectedPartyIdForLedger: string | null;
   selectedAccountIdForLedger: string | null;
   prefilledPartyIdForTxn: string | null;
@@ -159,6 +162,8 @@ interface LedgerlyState {
   closeBankPickerModal: () => void;
   openPeriodCashflow: () => void;
   closePeriodCashflow: () => void;
+  openTransactionDetail: (txnId?: string, invoiceId?: string) => void;
+  closeTransactionDetail: () => void;
 
   // Onboarding
   completeOnboarding: (data: {
@@ -229,6 +234,7 @@ interface LedgerlyState {
 
   addItem: (item: Omit<Item, 'id' | 'currentStock' | 'isDeleted'>) => Item;
   updateItem: (id: string, updates: Partial<Item>) => void;
+  deleteItem: (id: string) => void;
   adjustStock: (itemId: string, qty: number, direction: 'IN' | 'OUT', reason: string) => void;
 
   // Atomic Vyapar Invoice Save
@@ -288,6 +294,9 @@ export const useLedgerlyStore = create<LedgerlyState>()(
       isFinancialYearModalOpen: false,
       isDeleteYearModalOpen: false,
       isPeriodCashflowOpen: false,
+      isTransactionDetailOpen: false,
+      selectedTransactionForDetail: null,
+      selectedInvoiceForDetail: null,
       selectedPartyIdForLedger: null,
       selectedAccountIdForLedger: null,
       prefilledPartyIdForTxn: null,
@@ -540,6 +549,39 @@ export const useLedgerlyStore = create<LedgerlyState>()(
 
       openPeriodCashflow: () => set({ isPeriodCashflowOpen: true }),
       closePeriodCashflow: () => set({ isPeriodCashflowOpen: false }),
+
+      openTransactionDetail: (txnId?: string, invoiceId?: string) => {
+        const { transactions, invoices } = get();
+        let foundTxn: Transaction | undefined;
+        let foundInv: Invoice | undefined;
+
+        if (txnId) {
+          foundTxn = transactions.find((t) => t.id === txnId);
+          if (foundTxn?.invoiceId) {
+            foundInv = invoices.find((i) => i.id === foundTxn!.invoiceId);
+          }
+        }
+
+        if (invoiceId && !foundInv) {
+          foundInv = invoices.find((i) => i.id === invoiceId);
+          if (!foundTxn && foundInv) {
+            foundTxn = transactions.find((t) => t.invoiceId === foundInv!.id);
+          }
+        }
+
+        set({
+          isTransactionDetailOpen: true,
+          selectedTransactionForDetail: foundTxn || null,
+          selectedInvoiceForDetail: foundInv || null,
+        });
+      },
+
+      closeTransactionDetail: () =>
+        set({
+          isTransactionDetailOpen: false,
+          selectedTransactionForDetail: null,
+          selectedInvoiceForDetail: null,
+        }),
 
       // Complete Onboarding
       completeOnboarding: (data) => {
@@ -1223,6 +1265,27 @@ export const useLedgerlyStore = create<LedgerlyState>()(
         }));
       },
 
+      deleteItem: (id) => {
+        const user = get().getCurrentUser();
+        if (user && user.role === 'VIEWER') return;
+        set((state) => ({
+          items: state.items.map((i) => (i.id === id ? { ...i, isDeleted: true } : i)),
+          auditLogs: [
+            {
+              id: `audit-${Date.now()}`,
+              entity: 'ITEM',
+              entityId: id,
+              action: 'DELETE',
+              userId: user?.id,
+              userRole: user?.role,
+              userName: user?.name,
+              at: new Date().toISOString(),
+            },
+            ...state.auditLogs,
+          ],
+        }));
+      },
+
       adjustStock: (itemId, qty, direction, reason) => {
         const user = get().getCurrentUser();
         if (user && user.role === 'VIEWER') return;
@@ -1256,8 +1319,55 @@ export const useLedgerlyStore = create<LedgerlyState>()(
         const now = new Date().toISOString();
         const activeFY = get().activeFinancialYear;
 
+        // Auto-save new items/services and prevent duplicates
+        let currentItems = [...get().items];
+        const linesWithResolvedItems = invData.lines.map((line) => {
+          const rawName = (line.itemName || '').trim();
+          if (!rawName) return line;
+          const normalized = rawName.toLowerCase().replace(/\s+/g, ' ');
+
+          let existingItem = currentItems.find(
+            (it) => !it.isDeleted && it.name.trim().toLowerCase().replace(/\s+/g, ' ') === normalized
+          );
+
+          if (!existingItem) {
+            // Automatically save new item/service to item database
+            const newItemId =
+              line.itemId && line.itemId.startsWith('item-') && !currentItems.some((i) => i.id === line.itemId)
+                ? line.itemId
+                : `item-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+
+            const newItem: Item = {
+              id: newItemId,
+              name: rawName,
+              category: 'General',
+              itemType: line.itemType || 'PRODUCT',
+              unit: line.unit || 'pcs',
+              salePrice: invData.type === 'SALE' ? line.rate : 0,
+              purchasePrice: invData.type === 'PURCHASE' ? line.rate : 0,
+              openingStock: 0,
+              currentStock: 0,
+              minStock: 0,
+              taxPercent: line.taxPercent || 0,
+              hsn: line.hsn || '',
+              isDeleted: false,
+            };
+            currentItems.push(newItem);
+            existingItem = newItem;
+          }
+
+          return {
+            ...line,
+            itemId: existingItem.id,
+            itemName: existingItem.name,
+            unit: line.unit || existingItem.unit,
+            itemType: line.itemType || existingItem.itemType || 'PRODUCT',
+          };
+        });
+
         const newInvoice: Invoice = {
           ...invData,
+          lines: linesWithResolvedItems,
           id,
           financialYear: invData.financialYear || activeFY,
           createdAt: now,
@@ -1274,28 +1384,33 @@ export const useLedgerlyStore = create<LedgerlyState>()(
           invData.type === 'SALE' || invData.type === 'PURCHASE_RETURN' ? 'OUT' : 'IN';
         const refType = invData.type as 'SALE' | 'PURCHASE' | 'SALE_RETURN' | 'PURCHASE_RETURN';
 
-        const newMovements: StockMovement[] = invData.lines.map((line) => ({
-          id: `sm-${Date.now()}-${line.itemId}`,
-          itemId: line.itemId,
-          qty: line.qty,
-          direction: stockDirection,
-          refType,
-          refId: id,
-          date: invData.date,
-          createdAt: now,
-        }));
+        // For SERVICES, stock movement does not change physical inventory
+        const newMovements: StockMovement[] = linesWithResolvedItems
+          .filter((line) => line.itemType !== 'SERVICE')
+          .map((line) => ({
+            id: `sm-${Date.now()}-${line.itemId}`,
+            itemId: line.itemId,
+            qty: line.qty,
+            direction: stockDirection,
+            refType,
+            refId: id,
+            date: invData.date,
+            createdAt: now,
+          }));
 
         // Adjust item current stocks and check for negative stock warnings
         const stockWarnings: string[] = [];
         const itemStockDelta = new Map<string, number>();
 
-        for (const line of invData.lines) {
+        for (const line of linesWithResolvedItems) {
+          if (line.itemType === 'SERVICE') continue;
           const currentDelta = itemStockDelta.get(line.itemId) || 0;
           const delta = stockDirection === 'IN' ? line.qty : -line.qty;
           itemStockDelta.set(line.itemId, currentDelta + delta);
         }
 
-        const updatedItems = get().items.map((item) => {
+        const updatedItems = currentItems.map((item) => {
+          if (item.itemType === 'SERVICE') return item;
           const delta = itemStockDelta.get(item.id);
           if (delta === undefined) return item;
 
@@ -1311,6 +1426,7 @@ export const useLedgerlyStore = create<LedgerlyState>()(
           }
           return { ...item, currentStock: nextStock };
         });
+
 
         // Create transaction in Cash Book or Bank Ledger if paid amount > 0
         const newTransactions: Transaction[] = [];
