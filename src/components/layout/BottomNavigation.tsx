@@ -12,7 +12,7 @@ export const BottomNavigation: React.FC = () => {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-border pb-safe">
-      <div className="max-w-md mx-auto flex items-center justify-around h-16 px-2">
+      <div className="max-w-xl lg:max-w-2xl mx-auto flex items-center justify-around h-16 px-4">
         {/* Tab 1: Home */}
         <button
           type="button"

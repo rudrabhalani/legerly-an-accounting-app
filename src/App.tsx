@@ -31,6 +31,7 @@ import { FinancialYearModal } from './components/modals/FinancialYearModal';
 import { ReconcileModal } from './components/modals/ReconcileModal';
 import { SettingsModal } from './components/modals/SettingsModal';
 import { MultiUserModal } from './components/modals/MultiUserModal';
+import { PeriodCashflowModal } from './components/modals/PeriodCashflowModal';
 import { ToastSnackbar } from './components/common/ToastSnackbar';
 
 export function App() {
@@ -58,7 +59,7 @@ export function App() {
       <TopAppBar />
 
       {/* Main Content View based on activeTab */}
-      <main className="flex-1 max-w-2xl w-full mx-auto px-4">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8">
         {activeTab === 'home' && <HomeScreen />}
         {activeTab === 'bankLedger' && <BankLedgerScreen />}
         {activeTab === 'parties' && <PartiesScreen />}
@@ -73,6 +74,7 @@ export function App() {
       <BottomNavigation />
 
       {/* Global Modals & Overlays */}
+      <PeriodCashflowModal />
       <QuickAddSheet />
       <InvoiceScreen />
       <PaymentInOutModal />

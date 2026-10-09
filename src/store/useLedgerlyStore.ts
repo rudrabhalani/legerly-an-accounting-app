@@ -92,6 +92,7 @@ interface LedgerlyState {
   isBankPickerModalOpen: boolean;
   isFinancialYearModalOpen: boolean;
   isDeleteYearModalOpen: boolean;
+  isPeriodCashflowOpen: boolean;
   selectedPartyIdForLedger: string | null;
   selectedAccountIdForLedger: string | null;
   prefilledPartyIdForTxn: string | null;
@@ -156,6 +157,8 @@ interface LedgerlyState {
   closeMultiUserModal: () => void;
   openBankPickerModal: () => void;
   closeBankPickerModal: () => void;
+  openPeriodCashflow: () => void;
+  closePeriodCashflow: () => void;
 
   // Onboarding
   completeOnboarding: (data: {
@@ -218,6 +221,7 @@ interface LedgerlyState {
   deleteExpense: (id: string) => { success: boolean; error?: string };
 
   addParty: (party: Omit<Party, 'id' | 'createdAt' | 'updatedAt' | 'isDeleted'>) => Party;
+  addPartiesBatch: (parties: Omit<Party, 'id' | 'createdAt' | 'updatedAt' | 'isDeleted'>[]) => Party[];
   updateParty: (id: string, updates: Partial<Party>) => void;
   deleteParty: (id: string) => void;
 
@@ -283,6 +287,7 @@ export const useLedgerlyStore = create<LedgerlyState>()(
       isBankPickerModalOpen: false,
       isFinancialYearModalOpen: false,
       isDeleteYearModalOpen: false,
+      isPeriodCashflowOpen: false,
       selectedPartyIdForLedger: null,
       selectedAccountIdForLedger: null,
       prefilledPartyIdForTxn: null,
@@ -532,6 +537,9 @@ export const useLedgerlyStore = create<LedgerlyState>()(
 
       openBankPickerModal: () => set({ isBankPickerModalOpen: true }),
       closeBankPickerModal: () => set({ isBankPickerModalOpen: false }),
+
+      openPeriodCashflow: () => set({ isPeriodCashflowOpen: true }),
+      closePeriodCashflow: () => set({ isPeriodCashflowOpen: false }),
 
       // Complete Onboarding
       completeOnboarding: (data) => {
@@ -1081,6 +1089,57 @@ export const useLedgerlyStore = create<LedgerlyState>()(
         }));
 
         return newParty;
+      },
+
+      addPartiesBatch: (batch) => {
+        const now = new Date().toISOString();
+        const user = get().getCurrentUser();
+        const existingPhones = new Set(
+          get().parties.filter((p) => !p.isDeleted && p.phone).map((p) => p.phone)
+        );
+        const existingNames = new Set(
+          get().parties.filter((p) => !p.isDeleted).map((p) => p.name.trim().toLowerCase())
+        );
+
+        const created: Party[] = [];
+        for (const data of batch) {
+          if (!data.name || !data.name.trim()) continue;
+          if (data.phone && existingPhones.has(data.phone.trim())) continue;
+          if (!data.phone && existingNames.has(data.name.trim().toLowerCase())) continue;
+
+          const p: Party = {
+            ...data,
+            id: `party-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+            createdAt: now,
+            updatedAt: now,
+            isDeleted: false,
+          };
+          created.push(p);
+          if (p.phone) existingPhones.add(p.phone);
+          existingNames.add(p.name.trim().toLowerCase());
+        }
+
+        if (created.length > 0) {
+          set((state) => ({
+            parties: [...state.parties, ...created],
+            auditLogs: [
+              {
+                id: `audit-${Date.now()}`,
+                entity: 'PARTY',
+                entityId: 'batch',
+                action: 'CREATE',
+                userId: user?.id,
+                userRole: user?.role,
+                userName: user?.name,
+                after: { count: created.length },
+                at: now,
+              },
+              ...state.auditLogs,
+            ],
+          }));
+        }
+
+        return created;
       },
 
       updateParty: (id, updates) => {

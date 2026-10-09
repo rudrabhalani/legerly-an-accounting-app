@@ -196,274 +196,183 @@ export const HomeScreen: React.FC = () => {
         </div>
       </div>
 
-      {/* VYAPAR-STYLE TWO LARGE DASHBOARD BUTTON MODULES: MONEY IN & MONEY OUT */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {/* MONEY IN */}
-        <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-elevated space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center font-bold">
-                <ArrowDownLeft size={20} strokeWidth={2.5} />
+      {/* RESPONSIVE DASHBOARD LAYOUT: DESKTOP MULTI-COLUMN, MOBILE SINGLE COLUMN */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {/* LEFT / MAIN COLUMN: Cash Flow Summary & Recent Transactions */}
+        <div className="lg:col-span-8 space-y-4">
+          {/* 3. MONEY IN VS MONEY OUT PERIOD SUMMARY WITH PROGRESS BAR */}
+          <div className="p-4 rounded-card bg-white border border-border shadow-card">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <TrendingUp size={16} className="text-primary" />
+                <h3 className="text-sm font-bold text-slate-primary">Cash Flow Summary ({period})</h3>
               </div>
-              <div>
-                <h3 className="font-extrabold text-sm uppercase tracking-wide">MONEY IN</h3>
-                <span className="text-[11px] text-emerald-100">Income, Sales & Collections</span>
-              </div>
+              <span className="text-xs font-semibold text-slate-secondary">
+                Net: <span className={pnl.netProfit >= 0 ? 'text-moneyIn' : 'text-moneyOut'}>{formatINR(pnl.netProfit)}</span>
+              </span>
             </div>
-          </div>
 
-          <div className="grid grid-cols-3 gap-1.5 pt-1">
-            <button
-              type="button"
-              onClick={() => openInvoiceScreen('SALE')}
-              className="p-2 rounded-xl bg-white/15 hover:bg-white/25 active:scale-95 flex flex-col items-center text-center transition-all shadow-xs"
-            >
-              <Receipt size={16} className="mb-1" />
-              <span className="text-[11px] font-bold">+ Add Sale</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => openPaymentIn()}
-              className="p-2 rounded-xl bg-white/15 hover:bg-white/25 active:scale-95 flex flex-col items-center text-center transition-all shadow-xs"
-            >
-              <CreditCard size={16} className="mb-1" />
-              <span className="text-[11px] font-bold">+ Payment In</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => openInvoiceScreen('SALE_RETURN')}
-              className="p-2 rounded-xl bg-white/15 hover:bg-white/25 active:scale-95 flex flex-col items-center text-center transition-all shadow-xs"
-            >
-              <RotateCcw size={16} className="mb-1" />
-              <span className="text-[11px] font-bold">Sale Return</span>
-            </button>
-          </div>
-        </div>
-
-        {/* MONEY OUT */}
-        <div className="p-4 rounded-2xl bg-gradient-to-br from-rose-500 to-rose-600 text-white shadow-elevated space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center font-bold">
-                <ArrowUpRight size={20} strokeWidth={2.5} />
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div className="p-3 rounded-2xl bg-emerald-50/60 border border-emerald-100">
+                <div className="flex items-center gap-1.5 text-moneyIn mb-1">
+                  <ArrowDownLeft size={16} strokeWidth={2.5} />
+                  <span className="text-xs font-bold uppercase">{t.receiveMoney}</span>
+                </div>
+                <div className="text-lg font-extrabold text-moneyIn tabular-nums">
+                  {formatINR(pnl.totalRevenue, { showSign: true, type: 'IN' })}
+                </div>
               </div>
-              <div>
-                <h3 className="font-extrabold text-sm uppercase tracking-wide">MONEY OUT</h3>
-                <span className="text-[11px] text-rose-100">Purchases, Payouts & Expenses</span>
+
+              <div className="p-3 rounded-2xl bg-rose-50/60 border border-rose-100">
+                <div className="flex items-center gap-1.5 text-moneyOut mb-1">
+                  <ArrowUpRight size={16} strokeWidth={2.5} />
+                  <span className="text-xs font-bold uppercase">{t.payMoney}</span>
+                </div>
+                <div className="text-lg font-extrabold text-moneyOut tabular-nums">
+                  {formatINR(pnl.totalExpense, { showSign: true, type: 'OUT' })}
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="grid grid-cols-4 gap-1 pt-1">
-            <button
-              type="button"
-              onClick={() => openInvoiceScreen('PURCHASE')}
-              className="p-1.5 rounded-xl bg-white/15 hover:bg-white/25 active:scale-95 flex flex-col items-center text-center transition-all shadow-xs"
-            >
-              <ShoppingCart size={15} className="mb-1" />
-              <span className="text-[10px] font-bold">Purchase</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => openPaymentOut()}
-              className="p-1.5 rounded-xl bg-white/15 hover:bg-white/25 active:scale-95 flex flex-col items-center text-center transition-all shadow-xs"
-            >
-              <CreditCard size={15} className="mb-1" />
-              <span className="text-[10px] font-bold">Payment</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => openExpenseModal()}
-              className="p-1.5 rounded-xl bg-white/15 hover:bg-white/25 active:scale-95 flex flex-col items-center text-center transition-all shadow-xs"
-            >
-              <PieChart size={15} className="mb-1" />
-              <span className="text-[10px] font-bold">Expense</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => openInvoiceScreen('PURCHASE_RETURN')}
-              className="p-1.5 rounded-xl bg-white/15 hover:bg-white/25 active:scale-95 flex flex-col items-center text-center transition-all shadow-xs"
-            >
-              <RotateCcw size={15} className="mb-1" />
-              <span className="text-[10px] font-bold">Return</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* 3. MONEY IN VS MONEY OUT PERIOD SUMMARY WITH PROGRESS BAR */}
-      <div className="p-4 rounded-card bg-white border border-border shadow-card">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <TrendingUp size={16} className="text-primary" />
-            <h3 className="text-sm font-bold text-slate-primary">Cash Flow Summary ({period})</h3>
-          </div>
-          <span className="text-xs font-semibold text-slate-secondary">
-            Net: <span className={pnl.netProfit >= 0 ? 'text-moneyIn' : 'text-moneyOut'}>{formatINR(pnl.netProfit)}</span>
-          </span>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 mb-3">
-          <div className="p-3 rounded-2xl bg-emerald-50/60 border border-emerald-100">
-            <div className="flex items-center gap-1.5 text-moneyIn mb-1">
-              <ArrowDownLeft size={16} strokeWidth={2.5} />
-              <span className="text-xs font-bold uppercase">{t.receiveMoney}</span>
-            </div>
-            <div className="text-lg font-extrabold text-moneyIn tabular-nums">
-              {formatINR(pnl.totalRevenue, { showSign: true, type: 'IN' })}
-            </div>
-          </div>
-
-          <div className="p-3 rounded-2xl bg-rose-50/60 border border-rose-100">
-            <div className="flex items-center gap-1.5 text-moneyOut mb-1">
-              <ArrowUpRight size={16} strokeWidth={2.5} />
-              <span className="text-xs font-bold uppercase">{t.payMoney}</span>
-            </div>
-            <div className="text-lg font-extrabold text-moneyOut tabular-nums">
-              {formatINR(pnl.totalExpense, { showSign: true, type: 'OUT' })}
-            </div>
-          </div>
-        </div>
-
-        {/* Visual Ratio Bar Chart */}
-        {pnl.totalRevenue + pnl.totalExpense > 0 && (
-          <div className="w-full h-2.5 rounded-full bg-surface-subtle overflow-hidden flex">
-            <div
-              className="bg-moneyIn h-full transition-all duration-300"
-              style={{
-                width: `${Math.round((pnl.totalRevenue / (pnl.totalRevenue + pnl.totalExpense)) * 100)}%`,
-              }}
-            />
-            <div
-              className="bg-moneyOut h-full transition-all duration-300"
-              style={{
-                width: `${Math.round((pnl.totalExpense / (pnl.totalRevenue + pnl.totalExpense)) * 100)}%`,
-              }}
-            />
-          </div>
-        )}
-      </div>
-
-      {/* 4. TO RECEIVE & TO PAY CARDS */}
-      <div className="grid grid-cols-2 gap-3">
-        {/* To Receive (Customers owe you) */}
-        <div
-          onClick={() => setActiveTab('parties')}
-          className="p-4 rounded-card bg-white border border-border shadow-card hover:border-emerald-200 cursor-pointer transition-all"
-        >
-          <span className="text-xs font-semibold text-slate-secondary uppercase block mb-1">
-            {t.toReceive}
-          </span>
-          <div className="text-lg sm:text-xl font-extrabold text-moneyIn tabular-nums">
-            {formatINR(toReceive)}
-          </div>
-          <span className="text-[11px] text-slate-secondary mt-1 block">Customers owe you</span>
-        </div>
-
-        {/* To Pay (You owe suppliers) */}
-        <div
-          onClick={() => setActiveTab('parties')}
-          className="p-4 rounded-card bg-white border border-border shadow-card hover:border-rose-200 cursor-pointer transition-all"
-        >
-          <span className="text-xs font-semibold text-slate-secondary uppercase block mb-1">
-            {t.toPay}
-          </span>
-          <div className="text-lg sm:text-xl font-extrabold text-moneyOut tabular-nums">
-            {formatINR(toPay)}
-          </div>
-          <span className="text-[11px] text-slate-secondary mt-1 block">You owe suppliers</span>
-        </div>
-      </div>
-
-      {/* 5. RECENT TRANSACTIONS (LAST 10) */}
-      <div className="p-4 rounded-card bg-white border border-border shadow-card">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <History size={16} className="text-primary" />
-            <h3 className="text-sm font-bold text-slate-primary">{t.recentTransactions}</h3>
-          </div>
-          <button
-            type="button"
-            onClick={() => setActiveTab('reports')}
-            className="text-xs font-bold text-primary hover:text-primary-hover"
-          >
-            {t.seeAll}
-          </button>
-        </div>
-
-        {recentTransactions.length === 0 ? (
-          <EmptyState
-            icon={History}
-            title={t.noTransactionsYet}
-            description="Record your cash or bank payments easily."
-            actionLabel={t.moneyIn}
-            actionVariant="moneyIn"
-            onAction={() => openMoneyIn()}
-          />
-        ) : (
-          <div className="divide-y divide-border">
-            {recentTransactions.map((txn) => {
-              const party = txn.partyId ? partyMap.get(txn.partyId) : undefined;
-              const account = accountMap.get(txn.accountId);
-
-              return (
+            {/* Visual Ratio Bar Chart */}
+            {pnl.totalRevenue + pnl.totalExpense > 0 && (
+              <div className="w-full h-2.5 rounded-full bg-surface-subtle overflow-hidden flex">
                 <div
-                  key={txn.id}
-                  className="py-3 flex items-center justify-between group hover:bg-surface-subtle/50 px-1 rounded-xl transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div
-                      className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                        txn.type === 'IN'
-                          ? 'bg-moneyIn-tint text-moneyIn'
-                          : txn.type === 'OUT'
-                          ? 'bg-moneyOut-tint text-moneyOut'
-                          : 'bg-primary-light text-primary'
-                      }`}
-                    >
-                      {txn.type === 'IN' ? (
-                        <ArrowDownLeft size={20} strokeWidth={2.5} />
-                      ) : txn.type === 'OUT' ? (
-                        <ArrowUpRight size={20} strokeWidth={2.5} />
-                      ) : (
-                        <Coins size={18} />
-                      )}
-                    </div>
+                  className="bg-moneyIn h-full transition-all duration-300"
+                  style={{
+                    width: `${Math.round((pnl.totalRevenue / (pnl.totalRevenue + pnl.totalExpense)) * 100)}%`,
+                  }}
+                />
+                <div
+                  className="bg-moneyOut h-full transition-all duration-300"
+                  style={{
+                    width: `${Math.round((pnl.totalExpense / (pnl.totalRevenue + pnl.totalExpense)) * 100)}%`,
+                  }}
+                />
+              </div>
+            )}
+          </div>
 
-                    <div className="flex flex-col">
-                      <span className="text-sm font-bold text-slate-primary leading-tight">
-                        {party?.name || txn.category}
-                      </span>
-                      <div className="flex items-center gap-1.5 text-[11px] text-slate-secondary mt-0.5">
-                        <span>{formatDate(txn.date)}</span>
-                        <span>•</span>
-                        <span>{txn.mode}</span>
-                        {account && <span>({account.nickname})</span>}
+          {/* 5. RECENT TRANSACTIONS (LAST 10) */}
+          <div className="p-4 rounded-card bg-white border border-border shadow-card">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <History size={16} className="text-primary" />
+                <h3 className="text-sm font-bold text-slate-primary">{t.recentTransactions}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveTab('reports')}
+                className="text-xs font-bold text-primary hover:text-primary-hover"
+              >
+                {t.seeAll}
+              </button>
+            </div>
+
+            {recentTransactions.length === 0 ? (
+              <EmptyState
+                icon={History}
+                title={t.noTransactionsYet}
+                description="Record your cash or bank payments easily."
+                actionLabel={t.moneyIn}
+                actionVariant="moneyIn"
+                onAction={() => openMoneyIn()}
+              />
+            ) : (
+              <div className="divide-y divide-border">
+                {recentTransactions.map((txn) => {
+                  const party = txn.partyId ? partyMap.get(txn.partyId) : undefined;
+                  const account = accountMap.get(txn.accountId);
+
+                  return (
+                    <div
+                      key={txn.id}
+                      className="py-3 flex items-center justify-between group hover:bg-surface-subtle/50 px-1 rounded-xl transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                            txn.type === 'IN'
+                              ? 'bg-moneyIn-tint text-moneyIn'
+                              : txn.type === 'OUT'
+                              ? 'bg-moneyOut-tint text-moneyOut'
+                              : 'bg-primary-light text-primary'
+                          }`}
+                        >
+                          {txn.type === 'IN' ? (
+                            <ArrowDownLeft size={20} strokeWidth={2.5} />
+                          ) : txn.type === 'OUT' ? (
+                            <ArrowUpRight size={20} strokeWidth={2.5} />
+                          ) : (
+                            <Coins size={18} />
+                          )}
+                        </div>
+
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold text-slate-primary leading-tight">
+                            {party?.name || txn.category}
+                          </span>
+                          <div className="flex items-center gap-1.5 text-[11px] text-slate-secondary mt-0.5">
+                            <span>{formatDate(txn.date)}</span>
+                            <span>•</span>
+                            <span>{txn.mode}</span>
+                            {account && <span>({account.nickname})</span>}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col items-end">
+                        <AmountDisplay
+                          amount={txn.amount}
+                          type={txn.type === 'IN' ? 'IN' : txn.type === 'OUT' ? 'OUT' : 'NEUTRAL'}
+                          showSign
+                          size="md"
+                        />
+                        <span className="text-[10px] text-slate-secondary mt-0.5">
+                          {formatTime(txn.time)}
+                        </span>
                       </div>
                     </div>
-                  </div>
-
-                  <div className="flex flex-col items-end">
-                    <AmountDisplay
-                      amount={txn.amount}
-                      type={txn.type === 'IN' ? 'IN' : txn.type === 'OUT' ? 'OUT' : 'NEUTRAL'}
-                      showSign
-                      size="md"
-                    />
-                    <span className="text-[10px] text-slate-secondary mt-0.5">
-                      {formatTime(txn.time)}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            )}
           </div>
-        )}
+        </div>
+
+        {/* RIGHT COLUMN: To Receive & To Pay Dues & Shortcuts */}
+        <div className="lg:col-span-4 space-y-4">
+          {/* 4. TO RECEIVE & TO PAY CARDS */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3">
+            {/* To Receive (Customers owe you) */}
+            <div
+              onClick={() => setActiveTab('parties')}
+              className="p-4 rounded-card bg-white border border-border shadow-card hover:border-emerald-200 cursor-pointer transition-all"
+            >
+              <span className="text-xs font-semibold text-slate-secondary uppercase block mb-1">
+                {t.toReceive}
+              </span>
+              <div className="text-lg sm:text-xl font-extrabold text-moneyIn tabular-nums">
+                {formatINR(toReceive)}
+              </div>
+              <span className="text-[11px] text-slate-secondary mt-1 block">Customers owe you</span>
+            </div>
+
+            {/* To Pay (You owe suppliers) */}
+            <div
+              onClick={() => setActiveTab('parties')}
+              className="p-4 rounded-card bg-white border border-border shadow-card hover:border-rose-200 cursor-pointer transition-all"
+            >
+              <span className="text-xs font-semibold text-slate-secondary uppercase block mb-1">
+                {t.toPay}
+              </span>
+              <div className="text-lg sm:text-xl font-extrabold text-moneyOut tabular-nums">
+                {formatINR(toPay)}
+              </div>
+              <span className="text-[11px] text-slate-secondary mt-1 block">You owe suppliers</span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

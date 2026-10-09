@@ -49,58 +49,87 @@ export const PartyLedgerScreen: React.FC = () => {
     doc.save(`${party.name.replace(/\s+/g, '_')}_statement.pdf`);
   };
 
+  const handleSharePdfFile = async () => {
+    const doc = generatePartyStatementPdf(party, allLedgerEntries, business);
+    const pdfBlob = doc.output('blob');
+    const fileName = `${party.name.replace(/[^a-zA-Z0-9]/g, '_')}_statement.pdf`;
+    const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
+
+    if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+      try {
+        await navigator.share({
+          files: [pdfFile],
+          title: `${party.name} Statement`,
+        });
+        return;
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+      }
+    }
+
+    doc.save(fileName);
+    alert('Statement PDF file downloaded. You can now send or attach the PDF directly without any web link.');
+  };
+
   const handleExportExcel = () => {
     exportPartyLedgerToExcel(party, allLedgerEntries);
   };
 
-  const handleSendReminder = () => {
-    const text = `Dear ${party.name}, your outstanding balance with ${business.name} is ${formatINR(Math.abs(netBalance))}. Kindly clear at your earliest convenience. Thank you!`;
-    const phone = party.phone ? `91${party.phone}` : '';
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
-  };
-
   return (
-    <div className="fixed inset-0 z-40 bg-surface-muted flex flex-col max-w-2xl mx-auto shadow-2xl animate-in slide-in-from-right duration-200">
-      {/* Top Header */}
-      <div className="bg-white border-b border-border px-4 py-3 sticky top-0 z-20">
-        <div className="flex items-center justify-between">
+    <div className="fixed inset-0 z-40 bg-surface-muted flex flex-col max-w-5xl w-full mx-auto shadow-2xl animate-in slide-in-from-right duration-200 sm:my-3 sm:rounded-3xl sm:border sm:border-border overflow-hidden">
+      {/* Top Header - ONLY APP NAME 'Ledgerly' ABOVE STATEMENT */}
+      <div className="bg-white border-b border-border px-4 py-3 sticky top-0 z-20 space-y-2">
+        <div className="flex items-center justify-between pb-1 border-b border-border/60">
+          <div className="flex items-center gap-2">
+            <span className="px-2.5 py-1 rounded-xl bg-primary text-white text-xs font-black tracking-wider uppercase">
+              Ledgerly
+            </span>
+            <span className="text-xs font-bold text-slate-primary">Party Statement</span>
+          </div>
+          <span className="text-[11px] font-semibold text-slate-secondary">
+            {allLedgerEntries.length} entries
+          </span>
+        </div>
+
+        <div className="flex items-center justify-between pt-1">
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={closePartyLedger}
-              className="p-1.5 rounded-full hover:bg-surface-subtle text-slate-primary"
+              className="p-1.5 rounded-full hover:bg-surface-subtle text-slate-primary transition-colors"
             >
               <ArrowLeft size={20} />
             </button>
             <div>
-              <h2 className="text-base font-bold text-slate-primary leading-tight">{party.name}</h2>
+              <h2 className="text-base sm:text-lg font-bold text-slate-primary leading-tight">
+                {party.name}
+              </h2>
               <span className="text-xs text-slate-secondary">
                 {party.phone ? `+91 ${party.phone}` : 'No phone'} • {party.type}
               </span>
             </div>
           </div>
 
-          {/* Quick Call / WhatsApp Contact Buttons */}
+          {/* Quick Direct PDF Share & Export Buttons */}
           <div className="flex items-center gap-1.5">
             {party.phone && (
-              <>
-                <a
-                  href={`tel:${party.phone}`}
-                  className="p-2 rounded-xl bg-surface-subtle hover:bg-slate-200/60 text-primary border border-border"
-                  title="Call Party"
-                >
-                  <Phone size={16} />
-                </a>
-                <button
-                  type="button"
-                  onClick={handleSendReminder}
-                  className="p-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200"
-                  title="WhatsApp Reminder"
-                >
-                  <MessageCircle size={16} />
-                </button>
-              </>
+              <a
+                href={`tel:${party.phone}`}
+                className="p-2 rounded-xl bg-surface-subtle hover:bg-slate-200/60 text-primary border border-border"
+                title="Call Party"
+              >
+                <Phone size={16} />
+              </a>
             )}
+            <button
+              type="button"
+              onClick={handleSharePdfFile}
+              className="p-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 flex items-center gap-1 font-bold text-xs"
+              title="Direct Send PDF Statement (No Links)"
+            >
+              <Share2 size={16} />
+              <span className="hidden sm:inline">Send PDF</span>
+            </button>
             <button
               type="button"
               onClick={handleDownloadPdf}
@@ -140,11 +169,11 @@ export const PartyLedgerScreen: React.FC = () => {
           {netBalance > 0 && (
             <button
               type="button"
-              onClick={handleSendReminder}
-              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1 shadow-xs"
+              onClick={handleSharePdfFile}
+              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-all active:scale-95"
             >
-              <Bell size={13} />
-              <span>Send Reminder</span>
+              <Share2 size={13} />
+              <span>Send Statement PDF</span>
             </button>
           )}
         </div>
@@ -170,41 +199,64 @@ export const PartyLedgerScreen: React.FC = () => {
 
       {/* Ledger Table / List Body */}
       <div className="flex-1 overflow-y-auto p-4 space-y-2 pb-24">
-        {ledgerEntries.map((entry) => (
-          <div
-            key={entry.id}
-            className="p-3 bg-white rounded-2xl border border-border shadow-card flex items-center justify-between"
-          >
-            <div className="flex flex-col">
-              <span className="text-xs font-bold text-slate-primary">{entry.description}</span>
-              <span className="text-[11px] text-slate-secondary mt-0.5">
-                {entry.date} {entry.paymentMode ? `• ${entry.paymentMode}` : ''}
-              </span>
-            </div>
+        {ledgerEntries.map((entry) => {
+          const parts = entry.description.split(' • ');
+          const title = parts[0];
+          const details = parts.slice(1);
 
-            <div className="flex flex-col items-end">
-              {/* Debit / Credit Amount */}
-              {entry.debit > 0 ? (
-                <span className="text-xs font-bold text-moneyOut tabular-nums">
-                  −{formatINR(entry.debit)}
+          return (
+            <div
+              key={entry.id}
+              className="p-3.5 bg-white rounded-2xl border border-border shadow-card flex items-start justify-between gap-3 hover:bg-surface-subtle/30 transition-colors"
+            >
+              <div className="flex flex-col min-w-0 flex-1">
+                <span className="text-xs font-bold text-slate-primary leading-snug">
+                  {title}
                 </span>
-              ) : entry.credit > 0 ? (
-                <span className="text-xs font-bold text-moneyIn tabular-nums">
-                  +{formatINR(entry.credit)}
-                </span>
-              ) : null}
 
-              {/* Running Balance */}
-              <span className="text-[11px] font-semibold text-slate-secondary tabular-nums mt-0.5">
-                Bal: {formatINR(Math.abs(entry.runningBalance))} {entry.runningBalance >= 0 ? '(Dr)' : '(Cr)'}
-              </span>
+                {/* Details Badges (Items, Transport, Rent, Notes) */}
+                {details.length > 0 && (
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {details.map((detail, idx) => (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center px-2 py-0.5 rounded-lg bg-surface-subtle text-slate-primary text-[10px] font-medium border border-border"
+                      >
+                        {detail}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                <span className="text-[11px] text-slate-secondary mt-1">
+                  {entry.date} {entry.paymentMode ? `• ${entry.paymentMode}` : ''}
+                </span>
+              </div>
+
+              <div className="flex flex-col items-end flex-shrink-0">
+                {/* Debit / Credit Amount */}
+                {entry.debit > 0 ? (
+                  <span className="text-xs font-bold text-moneyOut tabular-nums">
+                    −{formatINR(entry.debit)}
+                  </span>
+                ) : entry.credit > 0 ? (
+                  <span className="text-xs font-bold text-moneyIn tabular-nums">
+                    +{formatINR(entry.credit)}
+                  </span>
+                ) : null}
+
+                {/* Running Balance */}
+                <span className="text-[11px] font-semibold text-slate-secondary tabular-nums mt-0.5">
+                  Bal: {formatINR(Math.abs(entry.runningBalance))} {entry.runningBalance >= 0 ? '(Dr)' : '(Cr)'}
+                </span>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Sticky Bottom Actions Prefilled with this Party */}
-      <div className="fixed bottom-0 left-0 right-0 max-w-2xl mx-auto bg-white border-t border-border p-3 flex gap-3 z-30">
+      <div className="fixed bottom-0 left-0 right-0 max-w-5xl mx-auto bg-white border-t border-border p-3 flex gap-3 z-30">
         <button
           type="button"
           onClick={() => openMoneyIn(party.id)}

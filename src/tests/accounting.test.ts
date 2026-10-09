@@ -401,4 +401,85 @@ describe('Indian Financial Year Calculations', () => {
   });
 });
 
+describe('Mobile Contact Normalization & Statement Details', () => {
+  it('normalizes various Indian phone number formats to 10 digits', async () => {
+    const { normalizePhoneNumber } = await import('../utils/contactPicker');
+    expect(normalizePhoneNumber('+91 98765 43210')).toBe('9876543210');
+    expect(normalizePhoneNumber('919876543210')).toBe('9876543210');
+    expect(normalizePhoneNumber('09876543210')).toBe('9876543210');
+    expect(normalizePhoneNumber('98765-43210')).toBe('9876543210');
+  });
+
+  it('includes transport charges, items, and notes in party statement ledger descriptions', () => {
+    const testParty: Party = {
+      id: 'p-test',
+      name: 'Ramesh Patel',
+      phone: '9876543210',
+      type: 'CUSTOMER',
+      openingBalance: 0,
+      openingType: 'RECEIVABLE',
+      createdAt: '2026-01-01',
+      updatedAt: '2026-01-01',
+      isDeleted: false,
+    };
+
+    const testInvoice: Invoice = {
+      id: 'inv-101',
+      number: 'INV/2627/001',
+      type: 'SALE',
+      date: '2026-10-09',
+      dueDate: '2026-10-15',
+      partyId: 'p-test',
+      partyName: 'Ramesh Patel',
+      lines: [
+        {
+          id: 'l1',
+          itemId: 'i1',
+          itemName: 'Cement UltraTech',
+          unit: 'pcs',
+          qty: 50,
+          rate: 38000,
+          discountPercent: 0,
+          discountType: 'PERCENT',
+          discountAmount: 0,
+          taxPercent: 18,
+          taxIncluded: false,
+          taxableAmount: 1900000,
+          cgst: 171000,
+          sgst: 171000,
+          igst: 0,
+          amount: 2242000,
+        },
+      ],
+      subtotal: 1900000,
+      discountTotal: 0,
+      taxableAmount: 1900000,
+      cgstTotal: 171000,
+      sgstTotal: 171000,
+      igstTotal: 0,
+      taxTotal: 342000,
+      extraCharges: 150000, // ₹1,500 transport
+      roundOff: 0,
+      total: 2392000,
+      paidAmount: 0,
+      status: 'UNPAID',
+      paymentType: 'CREDIT',
+      notes: 'Truck Transport to Site 4',
+      withGst: true,
+      createdAt: '2026-10-09T10:00:00Z',
+      updatedAt: '2026-10-09T10:00:00Z',
+      isDeleted: false,
+    };
+
+    const ledger = buildPartyLedger(testParty, [], [testInvoice]);
+    expect(ledger.length).toBe(2); // Opening + Invoice
+
+    const invEntry = ledger[1];
+    expect(invEntry.description).toContain('Sale Invoice #INV/2627/001');
+    expect(invEntry.description).toContain('Cement UltraTech');
+    expect(invEntry.description).toContain('Transport/Extra: ₹1500');
+    expect(invEntry.description).toContain('Truck Transport to Site 4');
+  });
+});
+
 

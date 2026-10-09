@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useLedgerlyStore } from '../../store/useLedgerlyStore';
 import { getTranslation } from '../../i18n/translations';
-import { Calendar, Settings as SettingsIcon, Globe, ChevronDown, Users, Crown } from 'lucide-react';
+import { Calendar, Settings as SettingsIcon, Globe, ChevronDown, Users, Crown, Clock } from 'lucide-react';
 import { DateFilterPeriod, LanguageCode } from '../../types';
 
 export const TopAppBar: React.FC = () => {
@@ -14,6 +14,7 @@ export const TopAppBar: React.FC = () => {
   const openSettings = useLedgerlyStore((state) => state.openSettings);
   const openMultiUserModal = useLedgerlyStore((state) => state.openMultiUserModal);
   const openFinancialYearModal = useLedgerlyStore((state) => state.openFinancialYearModal);
+  const openPeriodCashflow = useLedgerlyStore((state) => state.openPeriodCashflow);
   const activeFY = useLedgerlyStore((state) => state.activeFinancialYear);
 
   const t = getTranslation(business.language);
@@ -40,7 +41,7 @@ export const TopAppBar: React.FC = () => {
 
   return (
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-border px-4 py-3">
-      <div className="max-w-2xl mx-auto flex items-center justify-between">
+      <div className="max-w-7xl mx-auto flex items-center justify-between">
         {/* Left: Greeting & Business */}
         <div className="flex flex-col">
           <div className="flex items-center gap-1.5">
@@ -60,6 +61,17 @@ export const TopAppBar: React.FC = () => {
 
         {/* Right: Actions */}
         <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Time Icon: Quick Debit / Credit Amount by Timeframe (Today, Last Day, Last Week, etc.) */}
+          <button
+            type="button"
+            onClick={openPeriodCashflow}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 text-xs font-bold transition-all active:scale-95 shadow-xs"
+            title="Debit / Credit Summary (Today, Last Day, Last Week, Last Month, Last Year, Date-wise)"
+          >
+            <Clock size={15} className="text-amber-600" />
+            <span className="hidden sm:inline">Dr/Cr Time</span>
+          </button>
+
           {/* Financial Year Button */}
           <button
             type="button"

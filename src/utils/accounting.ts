@@ -280,15 +280,27 @@ export function buildPartyLedger(
   for (const item of combined) {
     if (item.kind === 'TXN') {
       const t = item.data;
+      const txnDetails: string[] = [];
+      if (t.category && t.category !== 'General' && !t.category.startsWith('Payment')) {
+        txnDetails.push(t.category);
+      }
+      if (t.note && t.note.trim()) {
+        txnDetails.push(t.note.trim());
+      }
+
       if (t.type === 'IN') {
         // Customer paid us -> Credit party / Decreases receivable
         running -= t.amount;
+        const desc = txnDetails.length > 0
+          ? `Payment Received (${t.mode}) • ${txnDetails.join(' | ')}`
+          : `Payment Received (${t.mode})`;
+
         entries.push({
           id: t.id,
           date: t.date,
           time: t.time,
           type: 'IN',
-          description: `Payment Received (${t.mode})`,
+          description: desc,
           debit: 0,
           credit: t.amount,
           runningBalance: running,
@@ -298,12 +310,16 @@ export function buildPartyLedger(
       } else if (t.type === 'OUT') {
         // We paid supplier -> Debit party / Decreases payable (increases net)
         running += t.amount;
+        const desc = txnDetails.length > 0
+          ? `Payment Given (${t.mode}) • ${txnDetails.join(' | ')}`
+          : `Payment Given (${t.mode})`;
+
         entries.push({
           id: t.id,
           date: t.date,
           time: t.time,
           type: 'OUT',
-          description: `Payment Given (${t.mode})`,
+          description: desc,
           debit: t.amount,
           credit: 0,
           runningBalance: running,
@@ -313,6 +329,20 @@ export function buildPartyLedger(
       }
     } else {
       const inv = item.data;
+      const invDetailParts: string[] = [];
+      if (inv.lines && inv.lines.length > 0) {
+        const itemSummary = inv.lines.map((l) => `${l.itemName} (${l.qty} ${l.unit})`).join(', ');
+        if (itemSummary) invDetailParts.push(`Items: ${itemSummary}`);
+      }
+      if (inv.extraCharges && inv.extraCharges > 0) {
+        invDetailParts.push(`Transport/Extra: ₹${(inv.extraCharges / 100).toFixed(0)}`);
+      }
+      if (inv.notes && inv.notes.trim()) {
+        invDetailParts.push(`Note: ${inv.notes.trim()}`);
+      }
+
+      const detailSuffix = invDetailParts.length > 0 ? ` • ${invDetailParts.join(' | ')}` : '';
+
       if (inv.type === 'SALE') {
         // Sale invoice -> increases receivable
         running += inv.total;
@@ -321,7 +351,7 @@ export function buildPartyLedger(
           date: inv.date,
           time: '',
           type: 'INVOICE',
-          description: `Sale Invoice #${inv.number}`,
+          description: `Sale Invoice #${inv.number}${detailSuffix}`,
           debit: 0,
           credit: inv.total,
           runningBalance: running,
@@ -335,9 +365,37 @@ export function buildPartyLedger(
           date: inv.date,
           time: '',
           type: 'INVOICE',
-          description: `Purchase Bill #${inv.number}`,
+          description: `Purchase Bill #${inv.number}${detailSuffix}`,
           debit: inv.total,
           credit: 0,
+          runningBalance: running,
+          refId: inv.id,
+        });
+      } else if (inv.type === 'SALE_RETURN') {
+        // Sale return -> decreases receivable
+        running -= inv.total;
+        entries.push({
+          id: inv.id,
+          date: inv.date,
+          time: '',
+          type: 'INVOICE',
+          description: `Credit Note / Sale Return #${inv.number}${detailSuffix}`,
+          debit: inv.total,
+          credit: 0,
+          runningBalance: running,
+          refId: inv.id,
+        });
+      } else if (inv.type === 'PURCHASE_RETURN') {
+        // Purchase return -> decreases payable
+        running += inv.total;
+        entries.push({
+          id: inv.id,
+          date: inv.date,
+          time: '',
+          type: 'INVOICE',
+          description: `Debit Note / Purchase Return #${inv.number}${detailSuffix}`,
+          debit: 0,
+          credit: inv.total,
           runningBalance: running,
           refId: inv.id,
         });

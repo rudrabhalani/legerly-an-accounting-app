@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useLedgerlyStore } from '../../store/useLedgerlyStore';
 import { PartyType, OpeningBalanceType } from '../../types';
 import { rupeesToPaise } from '../../utils/formatters';
-import { UserPlus, X, Check } from 'lucide-react';
+import { UserPlus, X, Check, BookUser } from 'lucide-react';
+import { pickMobileContacts } from '../../utils/contactPicker';
 
 export const PartyModal: React.FC = () => {
   const isPartyModalOpen = useLedgerlyStore((state) => state.isPartyModalOpen);
@@ -18,6 +19,14 @@ export const PartyModal: React.FC = () => {
   const [openingType, setOpeningType] = useState<OpeningBalanceType>('RECEIVABLE');
 
   if (!isPartyModalOpen) return null;
+
+  const handlePickPhoneContact = async () => {
+    const contacts = await pickMobileContacts(false);
+    if (contacts.length > 0) {
+      setName(contacts[0].name);
+      setPhone(contacts[0].phone);
+    }
+  };
 
   const handleSave = () => {
     if (!name.trim()) {
@@ -64,6 +73,16 @@ export const PartyModal: React.FC = () => {
         </div>
 
         <div className="space-y-3.5 py-4 max-h-[70vh] overflow-y-auto">
+          {/* Pick from Mobile Contacts */}
+          <button
+            type="button"
+            onClick={handlePickPhoneContact}
+            className="w-full py-2 px-3 rounded-2xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-95 shadow-xs"
+          >
+            <BookUser size={16} />
+            <span>Auto-Fill from Phone Contacts</span>
+          </button>
+
           {/* Party Name */}
           <div>
             <label className="block text-xs font-semibold text-slate-secondary mb-1">

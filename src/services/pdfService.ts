@@ -316,44 +316,34 @@ export function generatePartyStatementPdf(
   const primaryColor = [79, 70, 229];
   const slateColor = [15, 23, 42];
 
-  // Header Banner
+  // Top Header Banner: WRITE ONLY APP NAME "Ledgerly" as requested
   doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
   doc.rect(0, 0, 210, 8, 'F');
 
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
-  doc.setTextColor(slateColor[0], slateColor[1], slateColor[2]);
-  doc.text(business.name, 14, 20);
+  doc.setFontSize(22);
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.text('Ledgerly', 14, 22);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   doc.setTextColor(100, 116, 139);
-  doc.text(`Mobile: +91 ${business.phone}`, 14, 26);
-
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
-  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-  doc.text('PARTY STATEMENT', 196, 20, { align: 'right' });
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.setTextColor(15, 23, 42);
-  doc.text(`Generated: ${formatFullDate(new Date().toISOString())}`, 196, 26, { align: 'right' });
+  doc.text(`Statement Date: ${formatFullDate(new Date().toISOString())}`, 196, 22, { align: 'right' });
 
   // Party Banner Card
   doc.setDrawColor(226, 232, 240);
   doc.setFillColor(248, 250, 252);
-  doc.roundedRect(14, 32, 182, 22, 3, 3, 'FD');
+  doc.roundedRect(14, 30, 182, 22, 3, 3, 'FD');
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.setTextColor(15, 23, 42);
-  doc.text(`Party: ${party.name}`, 18, 41);
+  doc.text(`Party: ${party.name}`, 18, 39);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   doc.setTextColor(100, 116, 139);
-  doc.text(`Contact: +91 ${party.phone}  |  Type: ${party.type}`, 18, 48);
+  doc.text(`Contact: +91 ${party.phone || 'N/A'}  |  Type: ${party.type}`, 18, 46);
 
   const finalEntry = entries[entries.length - 1];
   const netBal = finalEntry ? finalEntry.runningBalance : 0;
@@ -361,10 +351,10 @@ export function generatePartyStatementPdf(
   doc.setFontSize(10.5);
   if (netBal >= 0) {
     doc.setTextColor(22, 163, 74);
-    doc.text(`Net: You'll get ${formatINR(netBal)}`, 190, 44, { align: 'right' });
+    doc.text(`Net: You'll get ${formatINR(netBal)}`, 190, 42, { align: 'right' });
   } else {
     doc.setTextColor(220, 38, 38);
-    doc.text(`Net: You'll give ${formatINR(Math.abs(netBal))}`, 190, 44, { align: 'right' });
+    doc.text(`Net: You'll give ${formatINR(Math.abs(netBal))}`, 190, 42, { align: 'right' });
   }
 
   const tableData = entries.map((e) => [
@@ -376,8 +366,8 @@ export function generatePartyStatementPdf(
   ]);
 
   autoTable(doc, {
-    startY: 60,
-    head: [['Date', 'Description', 'Debit (You Give)', 'Credit (You Get)', 'Running Balance']],
+    startY: 57,
+    head: [['Date', 'Description / Details', 'Debit (You Give)', 'Credit (You Get)', 'Running Balance']],
     body: tableData,
     theme: 'striped',
     headStyles: {
@@ -387,16 +377,17 @@ export function generatePartyStatementPdf(
       fontSize: 8.5,
     },
     styles: {
-      fontSize: 8,
+      fontSize: 7.8,
       cellPadding: 2.5,
       textColor: [15, 23, 42],
+      overflow: 'linebreak',
     },
     columnStyles: {
-      0: { cellWidth: 25 },
-      1: { cellWidth: 72 },
-      2: { cellWidth: 28, halign: 'right' },
-      3: { cellWidth: 28, halign: 'right' },
-      4: { cellWidth: 29, halign: 'right' },
+      0: { cellWidth: 22 },
+      1: { cellWidth: 80, overflow: 'linebreak' },
+      2: { cellWidth: 26, halign: 'right' },
+      3: { cellWidth: 26, halign: 'right' },
+      4: { cellWidth: 28, halign: 'right' },
     },
   });
 

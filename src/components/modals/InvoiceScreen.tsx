@@ -19,6 +19,7 @@ import {
 import { INDIAN_STATES, isInterStateSupply } from '../../data/indianStates';
 import { calculateLineGST, calculateInvoiceTotals } from '../../utils/gstCalc';
 import { generateInvoicePdf } from '../../services/pdfService';
+import { pickMobileContacts } from '../../utils/contactPicker';
 import {
   X,
   Plus,
@@ -35,6 +36,8 @@ import {
   UserPlus,
   PackagePlus,
   Percent,
+  Search,
+  BookUser,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -51,8 +54,11 @@ export const InvoiceScreen: React.FC = () => {
   const invoices = useLedgerlyStore((state) => state.invoices);
   const atomicSaveInvoice = useLedgerlyStore((state) => state.atomicSaveInvoice);
   const addParty = useLedgerlyStore((state) => state.addParty);
+  const addPartiesBatch = useLedgerlyStore((state) => state.addPartiesBatch);
   const addItem = useLedgerlyStore((state) => state.addItem);
   const canEditDelete = useLedgerlyStore((state) => state.canCurrentUserEditDelete());
+
+  const [partySearchTerm, setPartySearchTerm] = useState('');
 
   // Invoice Mode
   const [type, setType] = useState<InvoiceType>(mode || 'SALE');
@@ -329,6 +335,34 @@ export const InvoiceScreen: React.FC = () => {
     setNewPartyGstin('');
   };
 
+  // Mobile Contacts Picker Handler for Invoice Party
+  const handleImportContactsForInvoice = async () => {
+    const contacts = await pickMobileContacts(true);
+    if (contacts.length > 0) {
+      const created = addPartiesBatch(
+        contacts.map((c) => ({
+          name: c.name,
+          phone: c.phone,
+          type: type === 'SALE' ? 'CUSTOMER' : 'SUPPLIER',
+          openingBalance: 0,
+          openingType: type === 'SALE' ? 'RECEIVABLE' : 'PAYABLE',
+        }))
+      );
+      if (created.length > 0) {
+        setPartyId(created[0].id);
+        setPartySearchTerm('');
+      }
+    }
+  };
+
+  const handlePickSinglePhoneContact = async () => {
+    const contacts = await pickMobileContacts(false);
+    if (contacts.length > 0) {
+      setNewPartyName(contacts[0].name);
+      setNewPartyPhone(contacts[0].phone);
+    }
+  };
+
   // Quick Add Item handler
   const handleSaveQuickItem = () => {
     if (!newItemName.trim()) {
@@ -462,7 +496,7 @@ export const InvoiceScreen: React.FC = () => {
     };
   };
 
-  const handleSave = (andNew: boolean = false, andShare: boolean = false) => {
+  const handleSave = async (andNew: boolean = false, andShare: boolean = false) => {
     if (!canEditDelete) {
       alert('Viewers cannot create or edit invoices.');
       return;
@@ -481,12 +515,25 @@ export const InvoiceScreen: React.FC = () => {
     if (andShare) {
       const defaultBankAcc = accounts.find((a) => a.id === invData.accountId && a.type === 'BANK') || accounts.find((a) => a.type === 'BANK');
       const doc = generateInvoicePdf(invoice, business, selectedParty, defaultBankAcc);
-      doc.save(`${invoice.number.replace(/[\/\\]/g, '_')}.pdf`);
+      const fileName = `${invoice.number.replace(/[\/\\]/g, '_')}.pdf`;
+      const pdfBlob = doc.output('blob');
+      const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
 
-      // Offer WhatsApp Share
-      if (selectedParty?.phone) {
-        const text = `Dear ${selectedParty.name}, here is your ${type === 'SALE' ? 'Invoice' : 'Bill'} #${invoice.number} of ${formatINR(invoice.total)} from ${business.name}. Balance due: ${formatINR(Math.max(0, invoice.total - invoice.paidAmount))}. Thank you!`;
-        window.open(`https://wa.me/91${selectedParty.phone}?text=${encodeURIComponent(text)}`, '_blank');
+      // Direct Send PDF file (no links sent!)
+      if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+        try {
+          await navigator.share({
+            files: [pdfFile],
+            title: `${invoice.number}.pdf`,
+          });
+        } catch (err: any) {
+          if (err?.name !== 'AbortError') {
+            doc.save(fileName);
+          }
+        }
+      } else {
+        doc.save(fileName);
+        alert(`Bill PDF (${fileName}) downloaded directly. You can now send or attach the PDF directly without any web link.`);
       }
     }
 
@@ -619,31 +666,60 @@ export const InvoiceScreen: React.FC = () => {
           {/* SECTION 2: HEADER DETAILS (Party, Number, Dates, State) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 bg-surface-subtle/40 p-4 rounded-2xl border border-border">
             {/* Party Picker */}
-            <div className="sm:col-span-2 space-y-1">
+            <div className="sm:col-span-2 space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-slate-primary">
                   {isSale ? 'Customer' : 'Supplier'} <span className="text-rose-500">*</span>
                 </label>
-                <button
-                  type="button"
-                  onClick={() => setShowQuickPartyModal(true)}
-                  className="text-xs text-primary font-bold flex items-center gap-1 hover:underline"
-                >
-                  <UserPlus size={13} />
-                  <span>+ Quick Add</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleImportContactsForInvoice}
+                    className="text-[11px] text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-lg font-bold flex items-center gap-1 transition-all"
+                    title="Import Saved Contacts from Mobile Phone"
+                  >
+                    <BookUser size={13} />
+                    <span>Phone Contacts</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowQuickPartyModal(true)}
+                    className="text-xs text-primary font-bold flex items-center gap-1 hover:underline"
+                  >
+                    <UserPlus size={13} />
+                    <span>+ Quick Add</span>
+                  </button>
+                </div>
               </div>
+
+              {/* Instant Search Bar */}
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-secondary" />
+                <input
+                  type="text"
+                  placeholder="Filter party by name or mobile number..."
+                  value={partySearchTerm}
+                  onChange={(e) => setPartySearchTerm(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-border bg-white text-xs font-semibold text-slate-primary focus:outline-none focus:border-primary shadow-xs"
+                />
+              </div>
+
               <select
                 value={partyId}
                 onChange={(e) => setPartyId(e.target.value)}
-                className="w-full h-11 px-3 rounded-xl border border-border bg-white text-sm font-semibold text-slate-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                className="w-full h-11 px-3 rounded-xl border border-border bg-white text-xs font-semibold text-slate-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               >
                 <option value="">Select Party</option>
                 {parties
                   .filter((p) => !p.isDeleted)
+                  .filter((p) => {
+                    if (!partySearchTerm.trim()) return true;
+                    const q = partySearchTerm.toLowerCase();
+                    return p.name.toLowerCase().includes(q) || (p.phone && p.phone.includes(q));
+                  })
                   .map((p) => (
                     <option key={p.id} value={p.id}>
-                      {p.name} {p.phone ? `(${p.phone})` : ''}
+                      {p.name} {p.phone ? `(+91 ${p.phone})` : ''} • {p.type}
                     </option>
                   ))}
               </select>
@@ -1187,6 +1263,15 @@ export const InvoiceScreen: React.FC = () => {
             </div>
 
             <div className="space-y-2.5 text-xs">
+              <button
+                type="button"
+                onClick={handlePickSinglePhoneContact}
+                className="w-full py-2 px-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold flex items-center justify-center gap-2 transition-all active:scale-95 shadow-xs"
+              >
+                <BookUser size={15} />
+                <span>Auto-Fill from Phone Contacts</span>
+              </button>
+
               <div className="space-y-1">
                 <label className="font-bold text-slate-primary">Party Name *</label>
                 <input

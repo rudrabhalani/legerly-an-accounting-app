@@ -4,13 +4,15 @@ import { getTranslation } from '../i18n/translations';
 import { calculatePartyNetBalance, calculateReceivablesAndPayables } from '../utils/accounting';
 import { formatINR } from '../utils/formatters';
 import { EmptyState } from '../components/common/EmptyState';
-import { Search, UserPlus, Users, Phone, ChevronRight } from 'lucide-react';
+import { Search, UserPlus, Users, Phone, ChevronRight, BookUser } from 'lucide-react';
 import { PartyType } from '../types';
+import { pickMobileContacts } from '../utils/contactPicker';
 
 export const PartiesScreen: React.FC = () => {
   const parties = useLedgerlyStore((state) => state.parties);
   const transactions = useLedgerlyStore((state) => state.transactions);
   const invoices = useLedgerlyStore((state) => state.invoices);
+  const addPartiesBatch = useLedgerlyStore((state) => state.addPartiesBatch);
   const openPartyModal = useLedgerlyStore((state) => state.openPartyModal);
   const openPartyLedger = useLedgerlyStore((state) => state.openPartyLedger);
   const language = useLedgerlyStore((state) => state.business.language);
@@ -32,6 +34,26 @@ export const PartiesScreen: React.FC = () => {
       const q = search.toLowerCase();
       return p.name.toLowerCase().includes(q) || (p.phone && p.phone.includes(q));
     });
+
+  const handleImportMobileContacts = async () => {
+    const contacts = await pickMobileContacts(true);
+    if (contacts.length > 0) {
+      const added = addPartiesBatch(
+        contacts.map((c) => ({
+          name: c.name,
+          phone: c.phone,
+          type: tab === 'SUPPLIERS' ? 'SUPPLIER' : 'CUSTOMER',
+          openingBalance: 0,
+          openingType: 'RECEIVABLE',
+        }))
+      );
+      if (added.length > 0) {
+        alert(`Successfully imported ${added.length} contacts from your phone into Ledgerly!`);
+      } else {
+        alert('All selected contacts are already saved in Ledgerly.');
+      }
+    }
+  };
 
   return (
     <div className="space-y-3 pb-24 pt-2">
@@ -68,6 +90,16 @@ export const PartiesScreen: React.FC = () => {
             className="w-full pl-9 pr-4 py-2.5 rounded-2xl bg-white border border-border text-sm text-slate-primary focus:outline-none focus:border-primary shadow-xs"
           />
         </div>
+
+        <button
+          type="button"
+          onClick={handleImportMobileContacts}
+          className="h-10 px-3 rounded-2xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-xs flex items-center gap-1.5 shadow-xs active:scale-95 transition-all flex-shrink-0"
+          title="Import saved contacts directly from your phone address book"
+        >
+          <BookUser size={16} className="text-emerald-700" />
+          <span className="hidden sm:inline">Phone Contacts</span>
+        </button>
 
         <button
           type="button"
