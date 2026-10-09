@@ -24,6 +24,10 @@ import { TransferModal } from './components/modals/TransferModal';
 import { PartyModal } from './components/modals/PartyModal';
 import { ItemModal } from './components/modals/ItemModal';
 import { InvoiceModal } from './components/modals/InvoiceModal';
+import { InvoiceScreen } from './components/modals/InvoiceScreen';
+import { PaymentInOutModal } from './components/modals/PaymentInOutModal';
+import { ExpenseModal } from './components/modals/ExpenseModal';
+import { FinancialYearModal } from './components/modals/FinancialYearModal';
 import { ReconcileModal } from './components/modals/ReconcileModal';
 import { SettingsModal } from './components/modals/SettingsModal';
 import { MultiUserModal } from './components/modals/MultiUserModal';
@@ -70,6 +74,10 @@ export function App() {
 
       {/* Global Modals & Overlays */}
       <QuickAddSheet />
+      <InvoiceScreen />
+      <PaymentInOutModal />
+      <ExpenseModal />
+      <FinancialYearModal />
       <MoneyInModal />
       <MoneyOutModal />
       <TransferModal />

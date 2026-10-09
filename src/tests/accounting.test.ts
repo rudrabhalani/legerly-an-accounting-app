@@ -327,3 +327,78 @@ describe('Bank Ledger & Search Capabilities', () => {
   });
 });
 
+describe('GST Calculation Engine & Number to Words', () => {
+  it('calculates tax-exclusive GST correctly with intra-state CGST + SGST split', async () => {
+    const { calculateLineGST } = await import('../utils/gstCalc');
+    const result = calculateLineGST({
+      qty: 2,
+      ratePaise: 10000, // ₹100 each
+      taxPercent: 18,
+      taxIncluded: false,
+      withGst: true,
+      isInterState: false,
+    });
+
+    expect(result.grossPaise).toBe(20000); // ₹200
+    expect(result.taxableAmountPaise).toBe(20000);
+    expect(result.taxPaise).toBe(3600); // 18% of 200 = ₹36
+    expect(result.cgstPaise).toBe(1800); // ₹18
+    expect(result.sgstPaise).toBe(1800); // ₹18
+    expect(result.igstPaise).toBe(0);
+    expect(result.rowTotalPaise).toBe(23600); // ₹236
+  });
+
+  it('calculates tax-inclusive GST correctly', async () => {
+    const { calculateLineGST } = await import('../utils/gstCalc');
+    const result = calculateLineGST({
+      qty: 1,
+      ratePaise: 11800, // ₹118 tax-inclusive
+      taxPercent: 18,
+      taxIncluded: true,
+      withGst: true,
+      isInterState: true,
+    });
+
+    expect(result.rowTotalPaise).toBe(11800);
+    expect(result.taxableAmountPaise).toBe(10000); // ₹100
+    expect(result.taxPaise).toBe(1800); // ₹18
+    expect(result.igstPaise).toBe(1800); // ₹18 IGST
+    expect(result.cgstPaise).toBe(0);
+  });
+
+  it('calculates without-GST mode as 0 tax', async () => {
+    const { calculateLineGST } = await import('../utils/gstCalc');
+    const result = calculateLineGST({
+      qty: 5,
+      ratePaise: 2000, // ₹20
+      taxPercent: 18,
+      withGst: false,
+    });
+
+    expect(result.taxPaise).toBe(0);
+    expect(result.rowTotalPaise).toBe(10000); // ₹100
+  });
+
+  it('converts Rupee numbers into Indian words', async () => {
+    const { numberToIndianWords } = await import('../utils/gstCalc');
+    expect(numberToIndianWords(125000)).toBe('Rupees One Lakh Twenty-Five Thousand Only');
+    expect(numberToIndianWords(500)).toBe('Rupees Five Hundred Only');
+    expect(numberToIndianWords(0)).toBe('Rupees Zero Only');
+  });
+});
+
+describe('Indian Financial Year Calculations', () => {
+  it('correctly calculates Indian financial year (April to March)', async () => {
+    const { getCurrentFinancialYear, isDateInFinancialYear } = await import('../utils/financialYear');
+    const oct2026 = new Date('2026-10-09');
+    expect(getCurrentFinancialYear(oct2026)).toBe('2026-27');
+
+    const feb2027 = new Date('2027-02-15');
+    expect(getCurrentFinancialYear(feb2027)).toBe('2026-27');
+
+    expect(isDateInFinancialYear('2026-08-15', '2026-27')).toBe(true);
+    expect(isDateInFinancialYear('2025-03-31', '2026-27')).toBe(false);
+  });
+});
+
+

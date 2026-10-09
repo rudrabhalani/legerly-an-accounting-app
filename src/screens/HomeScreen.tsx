@@ -22,6 +22,11 @@ import {
   ArrowRight,
   TrendingUp,
   History,
+  Receipt,
+  ShoppingCart,
+  CreditCard,
+  PieChart,
+  RotateCcw,
   Scale,
 } from 'lucide-react';
 
@@ -34,8 +39,11 @@ export const HomeScreen: React.FC = () => {
   const invoices = useLedgerlyStore((state) => state.invoices);
   const period = useLedgerlyStore((state) => state.period);
   const language = useLedgerlyStore((state) => state.business.language);
+  const openInvoiceScreen = useLedgerlyStore((state) => state.openInvoiceScreen);
+  const openPaymentIn = useLedgerlyStore((state) => state.openPaymentIn);
+  const openPaymentOut = useLedgerlyStore((state) => state.openPaymentOut);
+  const openExpenseModal = useLedgerlyStore((state) => state.openExpenseModal);
   const openMoneyIn = useLedgerlyStore((state) => state.openMoneyIn);
-  const openMoneyOut = useLedgerlyStore((state) => state.openMoneyOut);
   const openAccountLedger = useLedgerlyStore((state) => state.openAccountLedger);
   const openPartyLedger = useLedgerlyStore((state) => state.openPartyLedger);
   const openReconcileModal = useLedgerlyStore((state) => state.openReconcileModal);
@@ -185,6 +193,106 @@ export const HomeScreen: React.FC = () => {
               </button>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* VYAPAR-STYLE TWO LARGE DASHBOARD BUTTON MODULES: MONEY IN & MONEY OUT */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {/* MONEY IN */}
+        <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-elevated space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center font-bold">
+                <ArrowDownLeft size={20} strokeWidth={2.5} />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-sm uppercase tracking-wide">MONEY IN</h3>
+                <span className="text-[11px] text-emerald-100">Income, Sales & Collections</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-1.5 pt-1">
+            <button
+              type="button"
+              onClick={() => openInvoiceScreen('SALE')}
+              className="p-2 rounded-xl bg-white/15 hover:bg-white/25 active:scale-95 flex flex-col items-center text-center transition-all shadow-xs"
+            >
+              <Receipt size={16} className="mb-1" />
+              <span className="text-[11px] font-bold">+ Add Sale</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => openPaymentIn()}
+              className="p-2 rounded-xl bg-white/15 hover:bg-white/25 active:scale-95 flex flex-col items-center text-center transition-all shadow-xs"
+            >
+              <CreditCard size={16} className="mb-1" />
+              <span className="text-[11px] font-bold">+ Payment In</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => openInvoiceScreen('SALE_RETURN')}
+              className="p-2 rounded-xl bg-white/15 hover:bg-white/25 active:scale-95 flex flex-col items-center text-center transition-all shadow-xs"
+            >
+              <RotateCcw size={16} className="mb-1" />
+              <span className="text-[11px] font-bold">Sale Return</span>
+            </button>
+          </div>
+        </div>
+
+        {/* MONEY OUT */}
+        <div className="p-4 rounded-2xl bg-gradient-to-br from-rose-500 to-rose-600 text-white shadow-elevated space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center font-bold">
+                <ArrowUpRight size={20} strokeWidth={2.5} />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-sm uppercase tracking-wide">MONEY OUT</h3>
+                <span className="text-[11px] text-rose-100">Purchases, Payouts & Expenses</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-4 gap-1 pt-1">
+            <button
+              type="button"
+              onClick={() => openInvoiceScreen('PURCHASE')}
+              className="p-1.5 rounded-xl bg-white/15 hover:bg-white/25 active:scale-95 flex flex-col items-center text-center transition-all shadow-xs"
+            >
+              <ShoppingCart size={15} className="mb-1" />
+              <span className="text-[10px] font-bold">Purchase</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => openPaymentOut()}
+              className="p-1.5 rounded-xl bg-white/15 hover:bg-white/25 active:scale-95 flex flex-col items-center text-center transition-all shadow-xs"
+            >
+              <CreditCard size={15} className="mb-1" />
+              <span className="text-[10px] font-bold">Payment</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => openExpenseModal()}
+              className="p-1.5 rounded-xl bg-white/15 hover:bg-white/25 active:scale-95 flex flex-col items-center text-center transition-all shadow-xs"
+            >
+              <PieChart size={15} className="mb-1" />
+              <span className="text-[10px] font-bold">Expense</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => openInvoiceScreen('PURCHASE_RETURN')}
+              className="p-1.5 rounded-xl bg-white/15 hover:bg-white/25 active:scale-95 flex flex-col items-center text-center transition-all shadow-xs"
+            >
+              <RotateCcw size={15} className="mb-1" />
+              <span className="text-[10px] font-bold">Return</span>
+            </button>
+          </div>
         </div>
       </div>
 

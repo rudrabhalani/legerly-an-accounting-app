@@ -5,24 +5,30 @@ import {
   calculateTotalBalance,
   calculateProfitAndLoss,
   calculateReceivablesAndPayables,
-  calculateAgingBuckets,
   calculateTotalStockValue,
 } from '../utils/accounting';
-import { formatINR, paiseToRupees } from '../utils/formatters';
-import { exportTransactionsToExcel, exportStockToExcel } from '../services/excelService';
+import { formatINR, paiseToRupees, formatDate, formatFullDate } from '../utils/formatters';
+import {
+  exportTransactionsToExcel,
+  exportSaleRegisterToExcel,
+  exportPurchaseRegisterToExcel,
+  exportGstSummaryToExcel,
+  exportStockToExcel,
+} from '../services/excelService';
+import { generateRegisterPdf } from '../services/pdfService';
 import {
   BarChart3,
-  BookOpen,
-  PieChart,
+  TrendingUp,
+  Receipt,
+  ShoppingCart,
+  Percent,
+  Boxes,
   Calendar,
   FileSpreadsheet,
   Download,
+  AlertTriangle,
   Clock,
-  ArrowDownLeft,
-  ArrowUpRight,
-  TrendingUp,
-  Landmark,
-  ShieldAlert,
+  BookOpen,
 } from 'lucide-react';
 
 export const ReportsScreen: React.FC = () => {
@@ -32,22 +38,57 @@ export const ReportsScreen: React.FC = () => {
   const items = useLedgerlyStore((state) => state.items);
   const stockMovements = useLedgerlyStore((state) => state.stockMovements);
   const invoices = useLedgerlyStore((state) => state.invoices);
+  const expenses = useLedgerlyStore((state) => state.expenses);
   const business = useLedgerlyStore((state) => state.business);
+  const activeFY = useLedgerlyStore((state) => state.activeFinancialYear);
+  const financialYears = useLedgerlyStore((state) => state.financialYears);
+  const setActiveFinancialYear = useLedgerlyStore((state) => state.setActiveFinancialYear);
   const language = useLedgerlyStore((state) => state.business.language);
   const t = getTranslation(language);
 
   const [activeReport, setActiveReport] = useState<
-    'PNL' | 'DAY_BOOK' | 'AGING' | 'BALANCE_SHEET' | 'EXPENSES'
-  >('PNL');
+    'SALE_REG' | 'PURCHASE_REG' | 'GST_SUMMARY' | 'STOCK_SUM' | 'PNL' | 'DAY_BOOK'
+  >('SALE_REG');
 
-  const activeTxns = transactions.filter((t) => !t.isDeleted);
-  const pnl = calculateProfitAndLoss(activeTxns, invoices);
-  const { total, cashTotal, bankTotal } = calculateTotalBalance(accounts, transactions);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+
+  // Filter invoices by FY and Date
+  const activeInvoices = invoices.filter((i) => {
+    if (i.isDeleted) return false;
+    if (i.financialYear && i.financialYear !== activeFY) return false;
+    if (startDate && i.date < startDate) return false;
+    if (endDate && i.date > endDate) return false;
+    return true;
+  });
+
+  const saleInvoices = activeInvoices.filter((i) => i.type === 'SALE' || i.type === 'SALE_RETURN');
+  const purchaseInvoices = activeInvoices.filter((i) => i.type === 'PURCHASE' || i.type === 'PURCHASE_RETURN');
+
+  const activeTxns = transactions.filter((t) => {
+    if (t.isDeleted) return false;
+    if (startDate && t.date < startDate) return false;
+    if (endDate && t.date > endDate) return false;
+    return true;
+  });
+
+  const pnl = calculateProfitAndLoss(activeTxns, activeInvoices);
+  const { totalValue, lowStockItems } = calculateTotalStockValue(items, stockMovements);
   const { toReceive, toPay } = calculateReceivablesAndPayables(parties, transactions, invoices);
-  const { totalValue } = calculateTotalStockValue(items, stockMovements);
-  const aging = calculateAgingBuckets(parties, transactions, invoices);
 
-  // Group transactions by date for Day Book
+  // GST Calculation Totals
+  const gstOutwardTaxable = saleInvoices.reduce((acc, i) => acc + (i.taxableAmount || (i.subtotal - i.discountTotal)), 0);
+  const gstOutwardTax = saleInvoices.reduce((acc, i) => acc + i.taxTotal, 0);
+  const gstOutwardCgst = saleInvoices.reduce((acc, i) => acc + (i.cgstTotal || 0), 0);
+  const gstOutwardSgst = saleInvoices.reduce((acc, i) => acc + (i.sgstTotal || 0), 0);
+  const gstOutwardIgst = saleInvoices.reduce((acc, i) => acc + (i.igstTotal || 0), 0);
+
+  const gstInwardTaxable = purchaseInvoices.reduce((acc, i) => acc + (i.taxableAmount || (i.subtotal - i.discountTotal)), 0);
+  const gstInwardTax = purchaseInvoices.reduce((acc, i) => acc + i.taxTotal, 0);
+
+  const netGstPayable = gstOutwardTax - gstInwardTax;
+
+  // Day Book grouping
   const dayBookMap = new Map<string, typeof activeTxns>();
   for (const txn of activeTxns) {
     const list = dayBookMap.get(txn.date) || [];
@@ -57,15 +98,67 @@ export const ReportsScreen: React.FC = () => {
   const dayBookDates = Array.from(dayBookMap.keys()).sort((a, b) => b.localeCompare(a));
 
   return (
-    <div className="space-y-4 pb-24 pt-2">
-      {/* Top Navigation Tabs for Reports */}
+    <div className="space-y-4 pb-28 pt-2">
+      {/* Top Controls: FY Selector & Date Filter */}
+      <div className="p-3 bg-white rounded-2xl border border-border shadow-xs space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Calendar size={16} className="text-primary" />
+            <span className="text-xs font-bold text-slate-primary">Financial Year:</span>
+            <select
+              value={activeFY}
+              onChange={(e) => setActiveFinancialYear(e.target.value)}
+              className="h-8 px-2.5 rounded-lg border border-border bg-surface-subtle text-xs font-bold text-slate-primary"
+            >
+              {financialYears.map((fy) => (
+                <option key={fy} value={fy}>
+                  FY {fy}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-1.5 text-xs">
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="h-8 px-2 rounded-lg border border-border text-[11px] font-semibold text-slate-secondary"
+              placeholder="From"
+            />
+            <span className="text-slate-muted">to</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="h-8 px-2 rounded-lg border border-border text-[11px] font-semibold text-slate-secondary"
+              placeholder="To"
+            />
+            {(startDate || endDate) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setStartDate('');
+                  setEndDate('');
+                }}
+                className="text-[11px] text-rose-600 font-bold hover:underline ml-1"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Report Switcher Tabs */}
       <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
         {[
+          { key: 'SALE_REG' as const, label: 'Sale Register', icon: Receipt },
+          { key: 'PURCHASE_REG' as const, label: 'Purchase Register', icon: ShoppingCart },
+          { key: 'GST_SUMMARY' as const, label: 'GST Summary', icon: Percent },
+          { key: 'STOCK_SUM' as const, label: 'Stock Summary', icon: Boxes },
           { key: 'PNL' as const, label: 'Profit & Loss', icon: TrendingUp },
-          { key: 'DAY_BOOK' as const, label: 'Day Book', icon: BookOpen },
-          { key: 'AGING' as const, label: 'Aging (Receivables)', icon: Clock },
-          { key: 'BALANCE_SHEET' as const, label: 'Balance Sheet', icon: Landmark },
-          { key: 'EXPENSES' as const, label: 'Expense Categories', icon: PieChart },
+          { key: 'DAY_BOOK' as const, label: 'Daily Day Book', icon: BookOpen },
         ].map((rep) => {
           const Icon = rep.icon;
           return (
@@ -86,144 +179,407 @@ export const ReportsScreen: React.FC = () => {
         })}
       </div>
 
-      {/* REPORT 1: PROFIT & LOSS */}
-      {activeReport === 'PNL' && (
-        <div className="space-y-3">
-          <div className="p-4 rounded-card bg-white border border-border shadow-card space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-border">
-              <div>
-                <h3 className="text-base font-bold text-slate-primary">Profit & Loss Statement</h3>
-                <span className="text-xs text-slate-secondary">Financial Year 2026-2027</span>
-              </div>
+      {/* 1. SALE REGISTER */}
+      {activeReport === 'SALE_REG' && (
+        <div className="p-4 rounded-card bg-white border border-border shadow-card space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-border">
+            <div>
+              <h3 className="text-base font-bold text-slate-primary">Sale Register</h3>
+              <span className="text-xs text-slate-secondary">
+                {saleInvoices.length} invoices in FY {activeFY}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => exportTransactionsToExcel(transactions, accounts, parties)}
-                className="p-2 rounded-xl bg-surface-subtle hover:bg-slate-200/60 text-emerald-800 border border-border"
-                title="Export Excel"
+                onClick={() => exportSaleRegisterToExcel(saleInvoices)}
+                className="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold flex items-center gap-1"
               >
-                <FileSpreadsheet size={16} />
+                <FileSpreadsheet size={14} />
+                <span>Excel</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const doc = generateRegisterPdf('Sale Register', saleInvoices, business);
+                  doc.save(`Sale_Register_${activeFY}.pdf`);
+                }}
+                className="px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-primary border border-indigo-200 text-xs font-bold flex items-center gap-1"
+              >
+                <Download size={14} />
+                <span>PDF</span>
               </button>
             </div>
+          </div>
 
-            {/* Net Profit Banner */}
-            <div
-              className={`p-4 rounded-2xl border ${
-                pnl.netProfit >= 0
-                  ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
-                  : 'bg-rose-50/70 border-rose-200 text-rose-900'
-              }`}
-            >
-              <span className="text-xs font-semibold uppercase tracking-wider block opacity-80">
-                {pnl.netProfit >= 0 ? 'Net Operating Profit' : 'Net Operating Loss'}
-              </span>
-              <span className="text-3xl font-extrabold tabular-nums block mt-1">
-                {formatINR(pnl.netProfit)}
-              </span>
-              <span className="text-[11px] opacity-80 mt-1 block">
-                Total Income: {formatINR(pnl.totalRevenue)} • Total Expenses: {formatINR(pnl.totalExpense)}
+          {saleInvoices.length === 0 ? (
+            <p className="text-xs text-slate-secondary py-6 text-center">No sales recorded for this period.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-border text-slate-secondary font-bold">
+                    <th className="pb-2">Date</th>
+                    <th className="pb-2">Invoice #</th>
+                    <th className="pb-2">Customer</th>
+                    <th className="pb-2 text-right">Tax (₹)</th>
+                    <th className="pb-2 text-right">Total (₹)</th>
+                    <th className="pb-2 text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {saleInvoices.map((inv) => (
+                    <tr key={inv.id} className="hover:bg-surface-subtle">
+                      <td className="py-2.5 font-medium text-slate-secondary">{formatDate(inv.date)}</td>
+                      <td className="py-2.5 font-bold text-primary">{inv.number}</td>
+                      <td className="py-2.5 font-bold text-slate-primary">{inv.partyName}</td>
+                      <td className="py-2.5 text-right font-medium">{formatINR(inv.taxTotal)}</td>
+                      <td className="py-2.5 text-right font-extrabold text-slate-primary">{formatINR(inv.total)}</td>
+                      <td className="py-2.5 text-center">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            inv.paidAmount >= inv.total
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : inv.paidAmount > 0
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-rose-100 text-rose-800'
+                          }`}
+                        >
+                          {inv.paidAmount >= inv.total ? 'Paid' : inv.paidAmount > 0 ? 'Partial' : 'Unpaid'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 2. PURCHASE REGISTER */}
+      {activeReport === 'PURCHASE_REG' && (
+        <div className="p-4 rounded-card bg-white border border-border shadow-card space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-border">
+            <div>
+              <h3 className="text-base font-bold text-slate-primary">Purchase Register</h3>
+              <span className="text-xs text-slate-secondary">
+                {purchaseInvoices.length} bills in FY {activeFY}
               </span>
             </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => exportPurchaseRegisterToExcel(purchaseInvoices)}
+                className="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold flex items-center gap-1"
+              >
+                <FileSpreadsheet size={14} />
+                <span>Excel</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const doc = generateRegisterPdf('Purchase Register', purchaseInvoices, business);
+                  doc.save(`Purchase_Register_${activeFY}.pdf`);
+                }}
+                className="px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-primary border border-indigo-200 text-xs font-bold flex items-center gap-1"
+              >
+                <Download size={14} />
+                <span>PDF</span>
+              </button>
+            </div>
+          </div>
 
-            {/* Breakdown Lists */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-              {/* Income */}
-              <div className="p-3 rounded-2xl bg-surface-subtle border border-border space-y-2">
-                <span className="text-xs font-bold text-moneyIn-dark uppercase block">
-                  Income Breakdown
-                </span>
-                <div className="space-y-1.5 text-xs">
-                  {Object.entries(pnl.incomeCategories).map(([cat, val]) => (
-                    <div key={cat} className="flex justify-between items-center py-1 border-b border-border/50">
-                      <span className="text-slate-primary font-medium">{cat}</span>
-                      <span className="font-bold text-moneyIn tabular-nums">+{formatINR(val)}</span>
-                    </div>
+          {purchaseInvoices.length === 0 ? (
+            <p className="text-xs text-slate-secondary py-6 text-center">No purchases recorded for this period.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-border text-slate-secondary font-bold">
+                    <th className="pb-2">Date</th>
+                    <th className="pb-2">Bill #</th>
+                    <th className="pb-2">Supplier</th>
+                    <th className="pb-2 text-right">Tax (₹)</th>
+                    <th className="pb-2 text-right">Total (₹)</th>
+                    <th className="pb-2 text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {purchaseInvoices.map((inv) => (
+                    <tr key={inv.id} className="hover:bg-surface-subtle">
+                      <td className="py-2.5 font-medium text-slate-secondary">{formatDate(inv.date)}</td>
+                      <td className="py-2.5 font-bold text-slate-primary">{inv.number}</td>
+                      <td className="py-2.5 font-bold text-slate-primary">{inv.partyName}</td>
+                      <td className="py-2.5 text-right font-medium">{formatINR(inv.taxTotal)}</td>
+                      <td className="py-2.5 text-right font-extrabold text-slate-primary">{formatINR(inv.total)}</td>
+                      <td className="py-2.5 text-center">
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            inv.paidAmount >= inv.total
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : inv.paidAmount > 0
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-rose-100 text-rose-800'
+                          }`}
+                        >
+                          {inv.paidAmount >= inv.total ? 'Paid' : inv.paidAmount > 0 ? 'Partial' : 'Unpaid'}
+                        </span>
+                      </td>
+                    </tr>
                   ))}
-                  {Object.keys(pnl.incomeCategories).length === 0 && (
-                    <span className="text-xs text-slate-muted">No income recorded</span>
-                  )}
-                </div>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 3. GST SUMMARY (GSTR-1 & GSTR-3B) */}
+      {activeReport === 'GST_SUMMARY' && (
+        <div className="p-4 rounded-card bg-white border border-border shadow-card space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-border">
+            <div>
+              <h3 className="text-base font-bold text-slate-primary">GST Tax Summary</h3>
+              <span className="text-xs text-slate-secondary">GSTR-1 Sales & GSTR-3B ITC Comparison</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => exportGstSummaryToExcel(saleInvoices, purchaseInvoices)}
+              className="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold flex items-center gap-1"
+            >
+              <FileSpreadsheet size={14} />
+              <span>Export GST Excel</span>
+            </button>
+          </div>
+
+          {/* Top Metric Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="p-3.5 rounded-2xl bg-indigo-50 border border-indigo-200">
+              <span className="text-[11px] font-bold text-indigo-900 uppercase">Output Tax (Sales)</span>
+              <span className="text-xl font-extrabold text-primary block mt-1">{formatINR(gstOutwardTax)}</span>
+              <span className="text-[10px] text-indigo-700">Taxable: {formatINR(gstOutwardTaxable)}</span>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200">
+              <span className="text-[11px] font-bold text-emerald-900 uppercase">Input Tax Credit (Purchases)</span>
+              <span className="text-xl font-extrabold text-emerald-700 block mt-1">{formatINR(gstInwardTax)}</span>
+              <span className="text-[10px] text-emerald-700">Taxable: {formatINR(gstInwardTaxable)}</span>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-surface-subtle border border-border">
+              <span className="text-[11px] font-bold text-slate-primary uppercase">Net GST Payable / (Credit)</span>
+              <span
+                className={`text-xl font-extrabold block mt-1 ${
+                  netGstPayable >= 0 ? 'text-rose-600' : 'text-emerald-600'
+                }`}
+              >
+                {netGstPayable >= 0 ? formatINR(netGstPayable) : `Credit ${formatINR(Math.abs(netGstPayable))}`}
+              </span>
+              <span className="text-[10px] text-slate-secondary">Output Tax − Input Credit</span>
+            </div>
+          </div>
+
+          {/* Tax Breakdown Table */}
+          <div className="p-3 bg-surface-subtle/50 rounded-2xl border border-border space-y-2 text-xs">
+            <h4 className="font-bold text-slate-primary">Outward Tax Breakup (GSTR-1)</h4>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="p-2 bg-white rounded-xl border border-border">
+                <span className="text-[10px] text-slate-secondary block">CGST</span>
+                <span className="font-extrabold text-slate-primary">{formatINR(gstOutwardCgst)}</span>
               </div>
-
-              {/* Expenses */}
-              <div className="p-3 rounded-2xl bg-surface-subtle border border-border space-y-2">
-                <span className="text-xs font-bold text-moneyOut-dark uppercase block">
-                  Expense Breakdown
-                </span>
-                <div className="space-y-1.5 text-xs">
-                  {Object.entries(pnl.expenseCategories).map(([cat, val]) => (
-                    <div key={cat} className="flex justify-between items-center py-1 border-b border-border/50">
-                      <span className="text-slate-primary font-medium">{cat}</span>
-                      <span className="font-bold text-moneyOut tabular-nums">−{formatINR(val)}</span>
-                    </div>
-                  ))}
-                  {Object.keys(pnl.expenseCategories).length === 0 && (
-                    <span className="text-xs text-slate-muted">No expenses recorded</span>
-                  )}
-                </div>
+              <div className="p-2 bg-white rounded-xl border border-border">
+                <span className="text-[10px] text-slate-secondary block">SGST</span>
+                <span className="font-extrabold text-slate-primary">{formatINR(gstOutwardSgst)}</span>
+              </div>
+              <div className="p-2 bg-white rounded-xl border border-border">
+                <span className="text-[10px] text-slate-secondary block">IGST</span>
+                <span className="font-extrabold text-slate-primary">{formatINR(gstOutwardIgst)}</span>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* REPORT 2: DAY BOOK */}
-      {activeReport === 'DAY_BOOK' && (
-        <div className="space-y-3">
-          <div className="p-4 rounded-card bg-white border border-border shadow-card">
-            <div className="flex items-center justify-between pb-3 border-b border-border mb-3">
-              <div>
-                <h3 className="text-base font-bold text-slate-primary">Day Book (Daily Ledger)</h3>
-                <span className="text-xs text-slate-secondary">Chronological daily receipts & payments</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => exportTransactionsToExcel(transactions, accounts, parties)}
-                className="p-2 rounded-xl bg-surface-subtle text-emerald-800 border border-border"
-              >
-                <FileSpreadsheet size={16} />
-              </button>
+      {/* 4. STOCK SUMMARY */}
+      {activeReport === 'STOCK_SUM' && (
+        <div className="p-4 rounded-card bg-white border border-border shadow-card space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-border">
+            <div>
+              <h3 className="text-base font-bold text-slate-primary">Stock & Inventory Valuation</h3>
+              <span className="text-xs text-slate-secondary">
+                Total Stock Value: {formatINR(totalValue)} • {items.length} items
+              </span>
             </div>
+            <button
+              type="button"
+              onClick={() => exportStockToExcel(items)}
+              className="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold flex items-center gap-1"
+            >
+              <FileSpreadsheet size={14} />
+              <span>Export Inventory</span>
+            </button>
+          </div>
 
+          {lowStockItems.length > 0 && (
+            <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 font-medium flex items-center gap-2">
+              <AlertTriangle size={16} className="text-amber-600 flex-shrink-0" />
+              <span>
+                {lowStockItems.length} items are currently at or below minimum alert stock level!
+              </span>
+            </div>
+          )}
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead>
+                <tr className="border-b border-border text-slate-secondary font-bold">
+                  <th className="pb-2">Item Name</th>
+                  <th className="pb-2">Category</th>
+                  <th className="pb-2 text-right">Current Stock</th>
+                  <th className="pb-2 text-right">Sale Price (₹)</th>
+                  <th className="pb-2 text-right">Stock Value (₹)</th>
+                  <th className="pb-2 text-center">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60">
+                {items
+                  .filter((i) => !i.isDeleted)
+                  .map((it) => {
+                    const isLow = it.currentStock <= (it.minStock || 0);
+                    return (
+                      <tr key={it.id} className="hover:bg-surface-subtle">
+                        <td className="py-2.5 font-bold text-slate-primary">{it.name}</td>
+                        <td className="py-2.5 text-slate-secondary">{it.category}</td>
+                        <td className="py-2.5 text-right font-extrabold text-slate-primary">
+                          {it.currentStock} {it.unit}
+                        </td>
+                        <td className="py-2.5 text-right font-medium">{formatINR(it.salePrice)}</td>
+                        <td className="py-2.5 text-right font-extrabold text-primary">
+                          {formatINR(it.currentStock * it.purchasePrice)}
+                        </td>
+                        <td className="py-2.5 text-center">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                              isLow ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800'
+                            }`}
+                          >
+                            {isLow ? 'LOW STOCK' : 'IN STOCK'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* 5. PROFIT & LOSS */}
+      {activeReport === 'PNL' && (
+        <div className="p-4 rounded-card bg-white border border-border shadow-card space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-border">
+            <div>
+              <h3 className="text-base font-bold text-slate-primary">Profit & Loss Statement</h3>
+              <span className="text-xs text-slate-secondary">FY {activeFY} Overview</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => exportTransactionsToExcel(transactions, accounts, parties)}
+              className="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold flex items-center gap-1"
+            >
+              <FileSpreadsheet size={14} />
+              <span>Export P&L</span>
+            </button>
+          </div>
+
+          <div
+            className={`p-4 rounded-2xl border ${
+              pnl.netProfit >= 0
+                ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
+                : 'bg-rose-50/70 border-rose-200 text-rose-900'
+            }`}
+          >
+            <span className="text-xs font-bold uppercase tracking-wider block opacity-80">
+              {pnl.netProfit >= 0 ? 'Net Operating Profit' : 'Net Operating Loss'}
+            </span>
+            <span className="text-3xl font-extrabold tabular-nums block mt-1">
+              {formatINR(pnl.netProfit)}
+            </span>
+          </div>
+
+          <div className="divide-y divide-border text-xs space-y-2">
+            <div className="flex justify-between py-2">
+              <span className="font-semibold text-slate-secondary">Total Inflow / Revenue</span>
+              <span className="font-bold text-emerald-600">+{formatINR(pnl.totalRevenue)}</span>
+            </div>
+            <div className="flex justify-between py-2">
+              <span className="font-semibold text-slate-secondary">Total Outflow / Direct Expenses</span>
+              <span className="font-bold text-rose-600">−{formatINR(pnl.totalExpense)}</span>
+            </div>
+            <div className="flex justify-between py-2">
+              <span className="font-semibold text-slate-secondary">Net Profit / Loss</span>
+              <span className={`font-bold ${pnl.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'}`}>
+                {formatINR(pnl.netProfit)}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. DAILY DAY BOOK */}
+      {activeReport === 'DAY_BOOK' && (
+        <div className="p-4 rounded-card bg-white border border-border shadow-card space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-border">
+            <div>
+              <h3 className="text-base font-bold text-slate-primary">Daily Day Book</h3>
+              <span className="text-xs text-slate-secondary">Chronological cash & bank inflow/outflow</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => exportTransactionsToExcel(transactions, accounts, parties)}
+              className="px-2.5 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold flex items-center gap-1"
+            >
+              <FileSpreadsheet size={14} />
+              <span>Export Day Book</span>
+            </button>
+          </div>
+
+          {dayBookDates.length === 0 ? (
+            <p className="text-xs text-slate-secondary py-6 text-center">No transactions recorded yet.</p>
+          ) : (
             <div className="space-y-4">
-              {dayBookDates.map((dateStr) => {
-                const dayTxns = dayBookMap.get(dateStr) || [];
-                let dayIn = 0;
-                let dayOut = 0;
-                for (const t of dayTxns) {
-                  if (t.type === 'IN') dayIn += t.amount;
-                  if (t.type === 'OUT') dayOut += t.amount;
-                }
+              {dayBookDates.map((dStr) => {
+                const txns = dayBookMap.get(dStr) || [];
+                const inTotal = txns.filter((t) => t.type === 'IN').reduce((acc, t) => acc + t.amount, 0);
+                const outTotal = txns.filter((t) => t.type === 'OUT').reduce((acc, t) => acc + t.amount, 0);
 
                 return (
-                  <div key={dateStr} className="rounded-2xl border border-border overflow-hidden">
-                    <div className="bg-surface-subtle px-3 py-2 border-b border-border flex items-center justify-between text-xs">
-                      <span className="font-bold text-slate-primary">{dateStr}</span>
-                      <div className="flex items-center gap-2 font-bold tabular-nums">
-                        <span className="text-moneyIn">+{formatINR(dayIn)}</span>
-                        <span>•</span>
-                        <span className="text-moneyOut">−{formatINR(dayOut)}</span>
+                  <div key={dStr} className="p-3 bg-surface-subtle/50 rounded-2xl border border-border space-y-2">
+                    <div className="flex justify-between items-center text-xs font-bold text-slate-primary border-b border-border/60 pb-1.5">
+                      <span>{formatFullDate(dStr)}</span>
+                      <div className="flex gap-3 text-[11px]">
+                        <span className="text-moneyIn font-extrabold">In: +{formatINR(inTotal)}</span>
+                        <span className="text-moneyOut font-extrabold">Out: −{formatINR(outTotal)}</span>
                       </div>
                     </div>
 
-                    <div className="divide-y divide-border/60 bg-white p-2">
-                      {dayTxns.map((t) => (
-                        <div key={t.id} className="py-2 px-1 flex items-center justify-between text-xs">
+                    <div className="divide-y divide-border/40">
+                      {txns.map((t) => (
+                        <div key={t.id} className="py-2 flex justify-between items-center text-xs">
                           <div>
-                            <span className="font-bold text-slate-primary">{t.category}</span>
-                            <span className="text-[11px] text-slate-secondary block">
-                              {t.time} • {t.mode} {t.note ? `• ${t.note}` : ''}
+                            <span className="font-bold text-slate-primary block">{t.category}</span>
+                            <span className="text-[10px] text-slate-secondary">
+                              {t.mode} {t.note ? `• ${t.note}` : ''}
                             </span>
                           </div>
                           <span
-                            className={`font-bold tabular-nums ${
-                              t.type === 'IN'
-                                ? 'text-moneyIn'
-                                : t.type === 'OUT'
-                                ? 'text-moneyOut'
-                                : 'text-primary'
+                            className={`font-extrabold ${
+                              t.type === 'IN' ? 'text-moneyIn' : 'text-moneyOut'
                             }`}
                           >
-                            {t.type === 'IN' ? '+' : t.type === 'OUT' ? '−' : ''}
+                            {t.type === 'IN' ? '+' : '−'}
                             {formatINR(t.amount)}
                           </span>
                         </div>
@@ -233,173 +589,7 @@ export const ReportsScreen: React.FC = () => {
                 );
               })}
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* REPORT 3: AGING (RECEIVABLES & PAYABLES) */}
-      {activeReport === 'AGING' && (
-        <div className="p-4 rounded-card bg-white border border-border shadow-card space-y-4">
-          <div>
-            <h3 className="text-base font-bold text-slate-primary">Receivables & Payables Aging</h3>
-            <span className="text-xs text-slate-secondary">Credit tenure tracking (0-30, 31-60, 60+ days)</span>
-          </div>
-
-          <div className="space-y-3">
-            {/* Customer Receivables Aging */}
-            <div className="p-3.5 rounded-2xl bg-emerald-50/60 border border-emerald-100 space-y-2">
-              <span className="text-xs font-bold text-emerald-900 uppercase block">
-                Customer Receivables ({formatINR(aging.receivables.total)})
-              </span>
-              <div className="grid grid-cols-4 gap-2 text-center">
-                <div className="p-2 rounded-xl bg-white border border-emerald-200">
-                  <span className="text-[10px] text-slate-secondary block">0-30 Days</span>
-                  <span className="text-xs font-bold text-slate-primary tabular-nums mt-0.5 block">
-                    {formatINR(aging.receivables.current)}
-                  </span>
-                </div>
-                <div className="p-2 rounded-xl bg-white border border-emerald-200">
-                  <span className="text-[10px] text-slate-secondary block">31-60 Days</span>
-                  <span className="text-xs font-bold text-slate-primary tabular-nums mt-0.5 block">
-                    {formatINR(aging.receivables.bucket30)}
-                  </span>
-                </div>
-                <div className="p-2 rounded-xl bg-white border border-emerald-200">
-                  <span className="text-[10px] text-slate-secondary block">61-90 Days</span>
-                  <span className="text-xs font-bold text-slate-primary tabular-nums mt-0.5 block">
-                    {formatINR(aging.receivables.bucket60)}
-                  </span>
-                </div>
-                <div className="p-2 rounded-xl bg-white border border-rose-200">
-                  <span className="text-[10px] text-rose-600 font-bold block">90+ Days</span>
-                  <span className="text-xs font-bold text-rose-600 tabular-nums mt-0.5 block">
-                    {formatINR(aging.receivables.bucket90Plus)}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Supplier Payables Aging */}
-            <div className="p-3.5 rounded-2xl bg-rose-50/60 border border-rose-100 space-y-2">
-              <span className="text-xs font-bold text-rose-900 uppercase block">
-                Supplier Payables ({formatINR(aging.payables.total)})
-              </span>
-              <div className="grid grid-cols-4 gap-2 text-center">
-                <div className="p-2 rounded-xl bg-white border border-rose-200">
-                  <span className="text-[10px] text-slate-secondary block">0-30 Days</span>
-                  <span className="text-xs font-bold text-slate-primary tabular-nums mt-0.5 block">
-                    {formatINR(aging.payables.current)}
-                  </span>
-                </div>
-                <div className="p-2 rounded-xl bg-white border border-rose-200">
-                  <span className="text-[10px] text-slate-secondary block">31-60 Days</span>
-                  <span className="text-xs font-bold text-slate-primary tabular-nums mt-0.5 block">
-                    {formatINR(aging.payables.bucket30)}
-                  </span>
-                </div>
-                <div className="p-2 rounded-xl bg-white border border-rose-200">
-                  <span className="text-[10px] text-slate-secondary block">61-90 Days</span>
-                  <span className="text-xs font-bold text-slate-primary tabular-nums mt-0.5 block">
-                    {formatINR(aging.payables.bucket60)}
-                  </span>
-                </div>
-                <div className="p-2 rounded-xl bg-white border border-rose-200">
-                  <span className="text-[10px] text-rose-600 font-bold block">90+ Days</span>
-                  <span className="text-xs font-bold text-rose-600 tabular-nums mt-0.5 block">
-                    {formatINR(aging.payables.bucket90Plus)}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* REPORT 4: SIMPLE BALANCE SHEET */}
-      {activeReport === 'BALANCE_SHEET' && (
-        <div className="p-4 rounded-card bg-white border border-border shadow-card space-y-4">
-          <div>
-            <h3 className="text-base font-bold text-slate-primary">Balance Sheet (Simplified)</h3>
-            <span className="text-xs text-slate-secondary">Assets vs Liabilities overview</span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {/* Assets */}
-            <div className="p-3.5 rounded-2xl bg-surface-subtle border border-border space-y-2">
-              <span className="text-xs font-bold text-slate-primary uppercase block">
-                Total Assets ({formatINR(total + toReceive + totalValue)})
-              </span>
-              <div className="space-y-1.5 text-xs">
-                <div className="flex justify-between py-1 border-b border-border/50">
-                  <span className="text-slate-secondary">Cash in Hand:</span>
-                  <span className="font-bold tabular-nums">{formatINR(cashTotal)}</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-border/50">
-                  <span className="text-slate-secondary">Bank Accounts:</span>
-                  <span className="font-bold tabular-nums">{formatINR(bankTotal)}</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-border/50">
-                  <span className="text-slate-secondary">Sundry Debtors (Receivables):</span>
-                  <span className="font-bold tabular-nums">{formatINR(toReceive)}</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-border/50">
-                  <span className="text-slate-secondary">Closing Stock Valuation:</span>
-                  <span className="font-bold tabular-nums">{formatINR(totalValue)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Liabilities */}
-            <div className="p-3.5 rounded-2xl bg-surface-subtle border border-border space-y-2">
-              <span className="text-xs font-bold text-slate-primary uppercase block">
-                Total Liabilities ({formatINR(toPay)})
-              </span>
-              <div className="space-y-1.5 text-xs">
-                <div className="flex justify-between py-1 border-b border-border/50">
-                  <span className="text-slate-secondary">Sundry Creditors (Payables):</span>
-                  <span className="font-bold tabular-nums">{formatINR(toPay)}</span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-border/50">
-                  <span className="text-slate-secondary">Owner's Net Worth / Equity:</span>
-                  <span className="font-bold tabular-nums text-primary">
-                    {formatINR(total + toReceive + totalValue - toPay)}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* REPORT 5: EXPENSES BY CATEGORY */}
-      {activeReport === 'EXPENSES' && (
-        <div className="p-4 rounded-card bg-white border border-border shadow-card space-y-4">
-          <div>
-            <h3 className="text-base font-bold text-slate-primary">Expense Analysis by Category</h3>
-            <span className="text-xs text-slate-secondary">Track where your shop money goes</span>
-          </div>
-
-          <div className="space-y-2">
-            {(Object.entries(pnl.expenseCategories) as [string, number][]).map(([cat, amount]) => {
-              const pct = pnl.totalExpense > 0 ? Math.round((amount / pnl.totalExpense) * 100) : 0;
-              return (
-                <div key={cat} className="space-y-1">
-                  <div className="flex justify-between text-xs font-semibold">
-                    <span className="text-slate-primary">{cat}</span>
-                    <span className="tabular-nums text-slate-secondary">
-                      {formatINR(amount)} ({pct}%)
-                    </span>
-                  </div>
-                  <div className="w-full h-2 rounded-full bg-surface-subtle overflow-hidden">
-                    <div
-                      className="h-full bg-moneyOut rounded-full transition-all"
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          )}
         </div>
       )}
     </div>

@@ -3,7 +3,7 @@
  * Demo data has been removed so first-time users complete real onboarding.
  */
 
-import { Business, Account, Party, Item, Transaction, Invoice, StockMovement, AppUser } from '../types';
+import { Business, Account, Party, Item, Transaction, Invoice, StockMovement, AppUser, Expense } from '../types';
 
 export const INITIAL_BUSINESS: Business = {
   id: 'biz-default',
@@ -31,4 +31,7 @@ export const INITIAL_TRANSACTIONS: Transaction[] = [];
 
 export const INITIAL_INVOICES: Invoice[] = [];
 
+export const INITIAL_EXPENSES: Expense[] = [];
+
 export const INITIAL_USERS: AppUser[] = [];
+

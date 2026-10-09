@@ -13,6 +13,8 @@ export const TopAppBar: React.FC = () => {
   const setLanguage = useLedgerlyStore((state) => state.setLanguage);
   const openSettings = useLedgerlyStore((state) => state.openSettings);
   const openMultiUserModal = useLedgerlyStore((state) => state.openMultiUserModal);
+  const openFinancialYearModal = useLedgerlyStore((state) => state.openFinancialYearModal);
+  const activeFY = useLedgerlyStore((state) => state.activeFinancialYear);
 
   const t = getTranslation(business.language);
   const [showPeriodDropdown, setShowPeriodDropdown] = useState(false);
@@ -57,7 +59,19 @@ export const TopAppBar: React.FC = () => {
         </div>
 
         {/* Right: Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Financial Year Button */}
+          <button
+            type="button"
+            onClick={openFinancialYearModal}
+            className="flex items-center gap-1 px-2 py-1.5 rounded-xl bg-primary-light hover:bg-indigo-100 border border-primary/20 text-primary text-xs font-bold transition-all active:scale-95"
+            title="Financial Year & Rollover"
+          >
+            <Calendar size={13} />
+            <span className="hidden sm:inline">FY</span>
+            <span>{activeFY}</span>
+          </button>
+
           {/* Multi-User Access (Team) Button */}
           <button
             type="button"

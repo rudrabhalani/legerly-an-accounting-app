@@ -81,6 +81,7 @@ export interface Party {
   phone: string;
   type: PartyType;
   address?: string;
+  state?: string;
   gstin?: string;
   openingBalance: number; // in paise
   openingType: OpeningBalanceType;
@@ -125,6 +126,9 @@ export interface Item {
   isDeleted: boolean;
 }
 
+export type DiscountType = 'PERCENT' | 'FLAT';
+export type InvoicePaymentType = 'CASH' | 'BANK' | 'UPI' | 'CHEQUE' | 'CREDIT';
+
 export interface InvoiceLine {
   id: string;
   itemId: string;
@@ -133,8 +137,16 @@ export interface InvoiceLine {
   qty: number;
   rate: number; // in paise
   discountPercent: number;
-  taxPercent: number;
+  discountType?: DiscountType;
+  discountAmount?: number; // in paise
+  taxPercent: number; // e.g. 0, 0.25, 3, 5, 12, 18, 28
+  taxIncluded?: boolean; // Rate includes GST vs Rate excludes GST
+  taxableAmount?: number; // in paise
+  cgst?: number; // in paise
+  sgst?: number; // in paise
+  igst?: number; // in paise
   amount: number; // in paise
+  hsn?: string;
 }
 
 export interface Invoice {
@@ -145,12 +157,21 @@ export interface Invoice {
   partyName: string;
   date: string;
   dueDate: string;
+  financialYear?: string; // e.g. "2026-27"
+  withGst?: boolean;
+  stateOfSupply?: string; // e.g. "24 - Gujarat"
   subtotal: number; // in paise
   discountTotal: number; // in paise
+  taxableAmount?: number; // in paise
   taxTotal: number; // in paise
+  cgstTotal?: number; // in paise
+  sgstTotal?: number; // in paise
+  igstTotal?: number; // in paise
+  extraCharges?: number; // in paise
   roundOff: number; // in paise (+ or -)
   total: number; // in paise
   paidAmount: number; // in paise
+  paymentType?: InvoicePaymentType;
   paymentMode?: PaymentMode;
   accountId?: string;
   status: InvoiceStatus;
@@ -159,6 +180,20 @@ export interface Invoice {
   lines: InvoiceLine[];
   createdAt: string;
   updatedAt: string;
+  isDeleted: boolean;
+}
+
+export interface Expense {
+  id: string;
+  category: string;
+  amount: number; // in paise
+  mode: PaymentMode;
+  accountId: string;
+  date: string;
+  note?: string;
+  financialYear?: string;
+  createdAt: string;
+  updatedAt?: string;
   isDeleted: boolean;
 }
 
@@ -176,9 +211,12 @@ export interface StockMovement {
 
 export interface AuditLog {
   id: string;
-  entity: 'TRANSACTION' | 'PARTY' | 'ACCOUNT' | 'INVOICE' | 'ITEM' | 'USER';
+  entity: 'TRANSACTION' | 'PARTY' | 'ACCOUNT' | 'INVOICE' | 'ITEM' | 'USER' | 'EXPENSE' | 'FINANCIAL_YEAR';
   entityId: string;
   action: 'CREATE' | 'UPDATE' | 'DELETE' | 'RESTORE';
+  userId?: string;
+  userRole?: UserRole;
+  userName?: string;
   before?: any;
   after?: any;
   at: string;

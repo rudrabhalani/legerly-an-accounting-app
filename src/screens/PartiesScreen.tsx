@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useLedgerlyStore } from '../store/useLedgerlyStore';
 import { getTranslation } from '../i18n/translations';
-import { calculatePartyNetBalance } from '../utils/accounting';
+import { calculatePartyNetBalance, calculateReceivablesAndPayables } from '../utils/accounting';
 import { formatINR } from '../utils/formatters';
 import { EmptyState } from '../components/common/EmptyState';
 import { Search, UserPlus, Users, Phone, ChevronRight } from 'lucide-react';
@@ -19,6 +19,8 @@ export const PartiesScreen: React.FC = () => {
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<'ALL' | 'CUSTOMERS' | 'SUPPLIERS'>('ALL');
 
+  const { toReceive, toPay } = calculateReceivablesAndPayables(parties, transactions, invoices);
+
   const filteredParties = parties
     .filter((p) => !p.isDeleted)
     .filter((p) => {
@@ -33,6 +35,27 @@ export const PartiesScreen: React.FC = () => {
 
   return (
     <div className="space-y-3 pb-24 pt-2">
+      {/* Total Receivable & Payable Summary Cards */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-200 shadow-xs flex flex-col">
+          <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wide">
+            You'll Get (Receivable)
+          </span>
+          <span className="text-lg sm:text-xl font-extrabold text-emerald-700 tabular-nums mt-0.5">
+            {formatINR(toReceive)}
+          </span>
+        </div>
+
+        <div className="p-3.5 rounded-2xl bg-rose-50/70 border border-rose-200 shadow-xs flex flex-col">
+          <span className="text-[11px] font-bold text-rose-800 uppercase tracking-wide">
+            You'll Give (Payable)
+          </span>
+          <span className="text-lg sm:text-xl font-extrabold text-rose-700 tabular-nums mt-0.5">
+            {formatINR(toPay)}
+          </span>
+        </div>
+      </div>
+
       {/* Top Search & Add Bar */}
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
