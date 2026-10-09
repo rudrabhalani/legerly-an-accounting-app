@@ -2,6 +2,8 @@
 > **Simple accounting for everyone.**  
 > A production-quality, offline-first accounting application designed for small shopkeepers, traders, and service businesses in India.
 
+🚀 **Live Production Deployment:** [https://legerly-an-accounting-app.vercel.app](https://legerly-an-accounting-app.vercel.app)
+
 ![Ledgerly App Logo](public/logo.svg)
 
 ---
