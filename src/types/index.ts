@@ -32,10 +32,23 @@ export type StockRefType = 'PURCHASE' | 'SALE' | 'ADJUSTMENT' | 'SALE_RETURN' | 
 
 export type LanguageCode = 'en' | 'hi' | 'gu';
 
+export type UserRole = 'OWNER' | 'MANAGER' | 'STAFF' | 'VIEWER';
+
+export interface AppUser {
+  id: string;
+  name: string;
+  phone: string;
+  role: UserRole;
+  isVerified: boolean;
+  addedAt: string;
+  isDeviceOwner?: boolean;
+}
+
 export interface Business {
   id: string;
   name: string;
   ownerName: string;
+  ownerPhone: string;
   phone: string;
   logo?: string;
   currency: 'INR';
@@ -52,7 +65,8 @@ export interface Business {
 export interface Account {
   id: string;
   type: AccountType;
-  bankName?: string; // SBI, HDFC, ICICI, etc.
+  bankName?: string; // State Bank of India (SBI), HDFC Bank, etc.
+  bankCode?: string; // SBI, HDFC, ICICI, etc.
   nickname: string;
   accountNumberMasked?: string; // e.g. "•••• 4821"
   ifsc?: string;
@@ -162,7 +176,7 @@ export interface StockMovement {
 
 export interface AuditLog {
   id: string;
-  entity: 'TRANSACTION' | 'PARTY' | 'ACCOUNT' | 'INVOICE' | 'ITEM';
+  entity: 'TRANSACTION' | 'PARTY' | 'ACCOUNT' | 'INVOICE' | 'ITEM' | 'USER';
   entityId: string;
   action: 'CREATE' | 'UPDATE' | 'DELETE' | 'RESTORE';
   before?: any;
@@ -182,6 +196,13 @@ export interface LedgerEntry {
   refId: string;
   paymentMode?: string;
   accountName?: string;
+}
+
+export interface BankStatementRow {
+  date: string;
+  description: string;
+  debit: number; // paise
+  credit: number; // paise
 }
 
 export type DateFilterPeriod = 'TODAY' | 'THIS_WEEK' | 'THIS_MONTH' | 'THIS_YEAR' | 'ALL' | 'CUSTOM';

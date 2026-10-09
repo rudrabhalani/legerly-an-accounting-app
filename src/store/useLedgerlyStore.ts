@@ -1,7 +1,7 @@
 /**
  * Ledgerly Zustand Store
- * Offline-first state management with persistent storage, full audit trail,
- * and undo capabilities.
+ * Production accounting store with offline persistence, Bank Ledger,
+ * Multi-user access control with Owner OTP verification, and first-time onboarding.
  */
 
 import { create } from 'zustand';
@@ -17,16 +17,28 @@ import {
   AuditLog,
   DateFilterPeriod,
   LanguageCode,
+  AppUser,
+  UserRole,
+  BankStatementRow,
 } from '../types';
 import {
-  SEED_BUSINESS,
-  SEED_ACCOUNTS,
-  SEED_PARTIES,
-  SEED_ITEMS,
-  SEED_TRANSACTIONS,
-  SEED_INVOICES,
-  SEED_STOCK_MOVEMENTS,
+  INITIAL_BUSINESS,
+  INITIAL_ACCOUNTS,
+  INITIAL_PARTIES,
+  INITIAL_ITEMS,
+  INITIAL_TRANSACTIONS,
+  INITIAL_INVOICES,
+  INITIAL_STOCK_MOVEMENTS,
+  INITIAL_USERS,
 } from '../data/seedData';
+
+interface PendingUserInvite {
+  name: string;
+  phone: string;
+  role: UserRole;
+  otp: string;
+  createdAt: string;
+}
 
 interface LedgerlyState {
   business: Business;
@@ -37,14 +49,17 @@ interface LedgerlyState {
   invoices: Invoice[];
   stockMovements: StockMovement[];
   auditLogs: AuditLog[];
+  users: AppUser[];
+  currentUserId: string | null;
+  pendingInvite: PendingUserInvite | null;
 
-  // App UI State
+  // Navigation & UI State
   period: DateFilterPeriod;
   customDateRange: { start: string; end: string };
   lastDeletedTransaction: Transaction | null;
-  activeTab: 'home' | 'parties' | 'stock' | 'reports';
+  activeTab: 'home' | 'bankLedger' | 'parties' | 'stock' | 'reports';
   
-  // Modals & Sheets
+  // Modals
   isMoneyInOpen: boolean;
   isMoneyOutOpen: boolean;
   isAddSheetOpen: boolean;
@@ -53,25 +68,26 @@ interface LedgerlyState {
   isItemModalOpen: boolean;
   isTransferModalOpen: boolean;
   isReconcileModalOpen: boolean;
-  isOnboardingOpen: boolean;
   isSettingsOpen: boolean;
+  isMultiUserModalOpen: boolean;
+  isBankPickerModalOpen: boolean;
   selectedPartyIdForLedger: string | null;
   selectedAccountIdForLedger: string | null;
   prefilledPartyIdForTxn: string | null;
   
-  // PIN Security
+  // Security
   isLocked: boolean;
 
-  // Actions
+  // Base Actions
   setPeriod: (period: DateFilterPeriod) => void;
   setCustomDateRange: (range: { start: string; end: string }) => void;
-  setActiveTab: (tab: 'home' | 'parties' | 'stock' | 'reports') => void;
+  setActiveTab: (tab: 'home' | 'bankLedger' | 'parties' | 'stock' | 'reports') => void;
   setLanguage: (lang: LanguageCode) => void;
   updateBusiness: (updates: Partial<Business>) => void;
   unlockApp: () => void;
   lockApp: () => void;
 
-  // Modal controls
+  // Modal Actions
   openMoneyIn: (prefillPartyId?: string) => void;
   closeMoneyIn: () => void;
   openMoneyOut: (prefillPartyId?: string) => void;
@@ -94,8 +110,44 @@ interface LedgerlyState {
   closeReconcileModal: () => void;
   openSettings: () => void;
   closeSettings: () => void;
+  openMultiUserModal: () => void;
+  closeMultiUserModal: () => void;
+  openBankPickerModal: () => void;
+  closeBankPickerModal: () => void;
 
-  // Domain Actions
+  // Onboarding
+  completeOnboarding: (data: {
+    businessName: string;
+    ownerName: string;
+    ownerPhone: string;
+    cashBalancePaise: number;
+    bankBalancePaise: number;
+    bankName: string;
+    bankCode: string;
+    bankNickname?: string;
+    last4?: string;
+  }) => void;
+  resetToFirstTimeSetup: () => void;
+
+  // Bank Ledger Actions
+  addBankAccount: (data: {
+    bankName: string;
+    bankCode: string;
+    nickname: string;
+    last4?: string;
+    ifsc?: string;
+    openingBalancePaise: number;
+  }) => Account;
+  importBankStatement: (accountId: string, rows: BankStatementRow[]) => void;
+
+  // Multi-User Actions (Shared Account with Owner OTP Verification)
+  requestAddUser: (name: string, phone: string, role: UserRole) => { otp: string; ownerPhone: string };
+  verifyAddUserOtp: (otp: string) => boolean;
+  cancelPendingInvite: () => void;
+  switchActiveUser: (userId: string) => void;
+  removeUser: (userId: string) => void;
+
+  // Core Transactions & Accounting
   addTransaction: (txn: Omit<Transaction, 'id' | 'createdAt' | 'updatedAt' | 'isDeleted'>) => Transaction;
   updateTransaction: (id: string, updates: Partial<Transaction>) => void;
   deleteTransaction: (id: string) => void;
@@ -106,7 +158,6 @@ interface LedgerlyState {
   updateParty: (id: string, updates: Partial<Party>) => void;
   deleteParty: (id: string) => void;
 
-  addAccount: (account: Omit<Account, 'id' | 'currentBalance'>) => Account;
   updateAccount: (id: string, updates: Partial<Account>) => void;
 
   addItem: (item: Omit<Item, 'id' | 'currentStock' | 'isDeleted'>) => Item;
@@ -115,8 +166,7 @@ interface LedgerlyState {
 
   addInvoice: (invoice: Omit<Invoice, 'id' | 'createdAt' | 'updatedAt' | 'isDeleted'>) => Invoice;
 
-  // Backup & Reset
-  resetToDemoData: () => void;
+  // Backup & Restore
   exportBackupJson: () => string;
   importBackupJson: (jsonData: string) => boolean;
 }
@@ -124,14 +174,17 @@ interface LedgerlyState {
 export const useLedgerlyStore = create<LedgerlyState>()(
   persist(
     (set, get) => ({
-      business: SEED_BUSINESS,
-      accounts: SEED_ACCOUNTS,
-      parties: SEED_PARTIES,
-      items: SEED_ITEMS,
-      transactions: SEED_TRANSACTIONS,
-      invoices: SEED_INVOICES,
-      stockMovements: SEED_STOCK_MOVEMENTS,
+      business: INITIAL_BUSINESS,
+      accounts: INITIAL_ACCOUNTS,
+      parties: INITIAL_PARTIES,
+      items: INITIAL_ITEMS,
+      transactions: INITIAL_TRANSACTIONS,
+      invoices: INITIAL_INVOICES,
+      stockMovements: INITIAL_STOCK_MOVEMENTS,
       auditLogs: [],
+      users: INITIAL_USERS,
+      currentUserId: null,
+      pendingInvite: null,
 
       period: 'THIS_MONTH',
       customDateRange: { start: '', end: '' },
@@ -146,8 +199,9 @@ export const useLedgerlyStore = create<LedgerlyState>()(
       isItemModalOpen: false,
       isTransferModalOpen: false,
       isReconcileModalOpen: false,
-      isOnboardingOpen: false,
       isSettingsOpen: false,
+      isMultiUserModalOpen: false,
+      isBankPickerModalOpen: false,
       selectedPartyIdForLedger: null,
       selectedAccountIdForLedger: null,
       prefilledPartyIdForTxn: null,
@@ -217,6 +271,249 @@ export const useLedgerlyStore = create<LedgerlyState>()(
       openSettings: () => set({ isSettingsOpen: true }),
       closeSettings: () => set({ isSettingsOpen: false }),
 
+      openMultiUserModal: () => set({ isMultiUserModalOpen: true }),
+      closeMultiUserModal: () => set({ isMultiUserModalOpen: false }),
+
+      openBankPickerModal: () => set({ isBankPickerModalOpen: true }),
+      closeBankPickerModal: () => set({ isBankPickerModalOpen: false }),
+
+      // 1. First-Time Onboarding Implementation
+      completeOnboarding: ({
+        businessName,
+        ownerName,
+        ownerPhone,
+        cashBalancePaise,
+        bankBalancePaise,
+        bankName,
+        bankCode,
+        bankNickname,
+        last4,
+      }) => {
+        const now = new Date().toISOString();
+        const todayDate = now.split('T')[0];
+
+        // Owner User
+        const ownerUser: AppUser = {
+          id: 'user-owner',
+          name: ownerName.trim() || 'Owner',
+          phone: ownerPhone.trim() || '9876543210',
+          role: 'OWNER',
+          isVerified: true,
+          addedAt: now,
+          isDeviceOwner: true,
+        };
+
+        // Cash Account
+        const cashAccount: Account = {
+          id: 'acc-cash',
+          type: 'CASH',
+          nickname: 'Cash in Hand',
+          openingBalance: cashBalancePaise,
+          currentBalance: cashBalancePaise,
+          isDefault: true,
+        };
+
+        // Primary Bank Account
+        const bankAccount: Account = {
+          id: `acc-bank-${Date.now()}`,
+          type: 'BANK',
+          bankName: bankName || 'State Bank of India',
+          bankCode: bankCode || 'SBI',
+          nickname: bankNickname || `${bankCode || 'SBI'} Primary Account`,
+          accountNumberMasked: last4 ? `•••• ${last4}` : '•••• 1234',
+          openingBalance: bankBalancePaise,
+          currentBalance: bankBalancePaise,
+          isDefault: false,
+        };
+
+        // Update Business info & set onboarded
+        const updatedBusiness: Business = {
+          id: `biz-${Date.now()}`,
+          name: businessName.trim() || 'My Business',
+          ownerName: ownerName.trim() || 'Owner',
+          ownerPhone: ownerPhone.trim() || '9876543210',
+          phone: ownerPhone.trim() || '9876543210',
+          currency: 'INR',
+          gstEnabled: false,
+          financialYearStart: '2026-04-01',
+          language: get().business.language || 'en',
+          pinEnabled: false,
+          isOnboarded: true,
+        };
+
+        set({
+          business: updatedBusiness,
+          accounts: [cashAccount, bankAccount],
+          users: [ownerUser],
+          currentUserId: 'user-owner',
+          parties: [],
+          transactions: [],
+          invoices: [],
+          stockMovements: [],
+          auditLogs: [
+            {
+              id: `audit-${Date.now()}`,
+              entity: 'ACCOUNT',
+              entityId: 'acc-cash',
+              action: 'CREATE',
+              at: now,
+            },
+          ],
+        });
+      },
+
+      resetToFirstTimeSetup: () => {
+        set({
+          business: INITIAL_BUSINESS,
+          accounts: INITIAL_ACCOUNTS,
+          parties: INITIAL_PARTIES,
+          items: INITIAL_ITEMS,
+          transactions: INITIAL_TRANSACTIONS,
+          invoices: INITIAL_INVOICES,
+          stockMovements: INITIAL_STOCK_MOVEMENTS,
+          auditLogs: [],
+          users: INITIAL_USERS,
+          currentUserId: null,
+          pendingInvite: null,
+          activeTab: 'home',
+        });
+      },
+
+      // 2. Bank Ledger Functions
+      addBankAccount: ({
+        bankName,
+        bankCode,
+        nickname,
+        last4,
+        ifsc,
+        openingBalancePaise,
+      }) => {
+        const id = `acc-bank-${Date.now()}`;
+        const newAcc: Account = {
+          id,
+          type: 'BANK',
+          bankName,
+          bankCode,
+          nickname: nickname.trim() || `${bankCode} Account`,
+          accountNumberMasked: last4 ? `•••• ${last4}` : undefined,
+          ifsc: ifsc?.trim().toUpperCase(),
+          openingBalance: openingBalancePaise || 0,
+          currentBalance: openingBalancePaise || 0,
+        };
+
+        set((state) => ({
+          accounts: [...state.accounts, newAcc],
+        }));
+
+        return newAcc;
+      },
+
+      importBankStatement: (accountId, rows) => {
+        const now = new Date().toISOString();
+        const targetAcc = get().accounts.find((a) => a.id === accountId);
+        if (!targetAcc) return;
+
+        const newTransactions: Transaction[] = rows.map((r, idx) => {
+          const isDeposit = (r.credit || 0) > 0;
+          const amount = isDeposit ? r.credit : r.debit;
+          return {
+            id: `txn-import-${Date.now()}-${idx}`,
+            type: isDeposit ? 'IN' : 'OUT',
+            amount,
+            accountId,
+            mode: 'NEFT_RTGS',
+            category: isDeposit ? 'Bank Statement Credit' : 'Bank Statement Debit',
+            date: r.date,
+            time: '12:00',
+            note: r.description,
+            createdAt: now,
+            updatedAt: now,
+            isDeleted: false,
+          };
+        });
+
+        set((state) => ({
+          transactions: [...newTransactions, ...state.transactions],
+          auditLogs: [
+            {
+              id: `audit-${Date.now()}`,
+              entity: 'ACCOUNT',
+              entityId: accountId,
+              action: 'UPDATE',
+              after: { importedCount: rows.length },
+              at: now,
+            },
+            ...state.auditLogs,
+          ],
+        }));
+      },
+
+      // 3. Multi-User Access (Shared Account with Owner OTP Verification)
+      requestAddUser: (name, phone, role) => {
+        // Generate a 6-digit OTP
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const now = new Date().toISOString();
+        const pending: PendingUserInvite = {
+          name: name.trim(),
+          phone: phone.trim(),
+          role,
+          otp,
+          createdAt: now,
+        };
+
+        set({ pendingInvite: pending });
+
+        const ownerPhone = get().business.ownerPhone || get().business.phone || '9876543210';
+        return { otp, ownerPhone };
+      },
+
+      verifyAddUserOtp: (enteredOtp) => {
+        const pending = get().pendingInvite;
+        if (!pending) return false;
+
+        if (pending.otp === enteredOtp.trim()) {
+          const newUser: AppUser = {
+            id: `user-${Date.now()}`,
+            name: pending.name,
+            phone: pending.phone,
+            role: pending.role,
+            isVerified: true,
+            addedAt: new Date().toISOString(),
+          };
+
+          set((state) => ({
+            users: [...state.users, newUser],
+            pendingInvite: null,
+            auditLogs: [
+              {
+                id: `audit-${Date.now()}`,
+                entity: 'USER',
+                entityId: newUser.id,
+                action: 'CREATE',
+                after: newUser,
+                at: new Date().toISOString(),
+              },
+              ...state.auditLogs,
+            ],
+          }));
+          return true;
+        }
+
+        return false;
+      },
+
+      cancelPendingInvite: () => set({ pendingInvite: null }),
+
+      switchActiveUser: (userId) => set({ currentUserId: userId }),
+
+      removeUser: (userId) => {
+        set((state) => ({
+          users: state.users.filter((u) => u.id !== userId),
+          currentUserId: state.currentUserId === userId ? (state.users[0]?.id || null) : state.currentUserId,
+        }));
+      },
+
+      // Transaction operations
       addTransaction: (txnData) => {
         const id = `txn-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
         const now = new Date().toISOString();
@@ -257,19 +554,20 @@ export const useLedgerlyStore = create<LedgerlyState>()(
             updatedAt: now,
           };
 
-          const audit: AuditLog = {
-            id: `audit-${Date.now()}`,
-            entity: 'TRANSACTION',
-            entityId: id,
-            action: 'UPDATE',
-            before: oldTxn,
-            after: updatedTxn,
-            at: now,
-          };
-
           return {
             transactions: state.transactions.map((t) => (t.id === id ? updatedTxn : t)),
-            auditLogs: [audit, ...state.auditLogs],
+            auditLogs: [
+              {
+                id: `audit-${Date.now()}`,
+                entity: 'TRANSACTION',
+                entityId: id,
+                action: 'UPDATE',
+                before: oldTxn,
+                after: updatedTxn,
+                at: now,
+              },
+              ...state.auditLogs,
+            ],
           };
         });
       },
@@ -279,21 +577,22 @@ export const useLedgerlyStore = create<LedgerlyState>()(
         const txn = get().transactions.find((t) => t.id === id);
         if (!txn) return;
 
-        const audit: AuditLog = {
-          id: `audit-${Date.now()}`,
-          entity: 'TRANSACTION',
-          entityId: id,
-          action: 'DELETE',
-          before: txn,
-          at: now,
-        };
-
         set((state) => ({
           lastDeletedTransaction: txn,
           transactions: state.transactions.map((t) =>
             t.id === id ? { ...t, isDeleted: true, updatedAt: now } : t
           ),
-          auditLogs: [audit, ...state.auditLogs],
+          auditLogs: [
+            {
+              id: `audit-${Date.now()}`,
+              entity: 'TRANSACTION',
+              entityId: id,
+              action: 'DELETE',
+              before: txn,
+              at: now,
+            },
+            ...state.auditLogs,
+          ],
         }));
       },
 
@@ -307,17 +606,6 @@ export const useLedgerlyStore = create<LedgerlyState>()(
             t.id === last.id ? { ...t, isDeleted: false, updatedAt: now } : t
           ),
           lastDeletedTransaction: null,
-          auditLogs: [
-            {
-              id: `audit-${Date.now()}`,
-              entity: 'TRANSACTION',
-              entityId: last.id,
-              action: 'RESTORE',
-              after: last,
-              at: now,
-            },
-            ...state.auditLogs,
-          ],
         }));
       },
 
@@ -336,17 +624,6 @@ export const useLedgerlyStore = create<LedgerlyState>()(
 
         set((state) => ({
           parties: [...state.parties, newParty],
-          auditLogs: [
-            {
-              id: `audit-${Date.now()}`,
-              entity: 'PARTY',
-              entityId: id,
-              action: 'CREATE',
-              after: newParty,
-              at: now,
-            },
-            ...state.auditLogs,
-          ],
         }));
 
         return newParty;
@@ -368,21 +645,6 @@ export const useLedgerlyStore = create<LedgerlyState>()(
             p.id === id ? { ...p, isDeleted: true, updatedAt: now } : p
           ),
         }));
-      },
-
-      addAccount: (accountData) => {
-        const id = `acc-${Date.now()}`;
-        const newAcc: Account = {
-          ...accountData,
-          id,
-          currentBalance: accountData.openingBalance,
-        };
-
-        set((state) => ({
-          accounts: [...state.accounts, newAcc],
-        }));
-
-        return newAcc;
       },
 
       updateAccount: (id, updates) => {
@@ -454,7 +716,6 @@ export const useLedgerlyStore = create<LedgerlyState>()(
           isDeleted: false,
         };
 
-        // If invoice is a sale or purchase, automatically create stock movements for line items
         const newMovements: StockMovement[] = invData.lines.map((line) => ({
           id: `sm-${Date.now()}-${line.itemId}`,
           itemId: line.itemId,
@@ -466,7 +727,6 @@ export const useLedgerlyStore = create<LedgerlyState>()(
           createdAt: now,
         }));
 
-        // If paidAmount > 0 and accountId is selected, record payment transaction
         const newTransactions: Transaction[] = [];
         if (invData.paidAmount > 0 && invData.accountId) {
           newTransactions.push({
@@ -496,24 +756,10 @@ export const useLedgerlyStore = create<LedgerlyState>()(
         return newInvoice;
       },
 
-      resetToDemoData: () => {
-        set({
-          business: SEED_BUSINESS,
-          accounts: SEED_ACCOUNTS,
-          parties: SEED_PARTIES,
-          items: SEED_ITEMS,
-          transactions: SEED_TRANSACTIONS,
-          invoices: SEED_INVOICES,
-          stockMovements: SEED_STOCK_MOVEMENTS,
-          auditLogs: [],
-          lastDeletedTransaction: null,
-        });
-      },
-
       exportBackupJson: () => {
         const state = get();
         const backup = {
-          version: '1.0.0',
+          version: '2.0.0',
           exportedAt: new Date().toISOString(),
           business: state.business,
           accounts: state.accounts,
@@ -522,6 +768,7 @@ export const useLedgerlyStore = create<LedgerlyState>()(
           transactions: state.transactions,
           invoices: state.invoices,
           stockMovements: state.stockMovements,
+          users: state.users,
           auditLogs: state.auditLogs,
         };
         return JSON.stringify(backup, null, 2);
@@ -530,7 +777,7 @@ export const useLedgerlyStore = create<LedgerlyState>()(
       importBackupJson: (jsonData: string) => {
         try {
           const parsed = JSON.parse(jsonData);
-          if (!parsed.business || !Array.isArray(parsed.transactions)) {
+          if (!parsed.business || !Array.isArray(parsed.accounts)) {
             return false;
           }
           set({
@@ -541,6 +788,7 @@ export const useLedgerlyStore = create<LedgerlyState>()(
             transactions: parsed.transactions || [],
             invoices: parsed.invoices || [],
             stockMovements: parsed.stockMovements || [],
+            users: parsed.users || [],
             auditLogs: parsed.auditLogs || [],
           });
           return true;
@@ -550,7 +798,7 @@ export const useLedgerlyStore = create<LedgerlyState>()(
       },
     }),
     {
-      name: 'ledgerly-storage-v1',
+      name: 'ledgerly-storage-v2',
       partialize: (state) => ({
         business: state.business,
         accounts: state.accounts,
@@ -559,6 +807,8 @@ export const useLedgerlyStore = create<LedgerlyState>()(
         transactions: state.transactions,
         invoices: state.invoices,
         stockMovements: state.stockMovements,
+        users: state.users,
+        currentUserId: state.currentUserId,
         auditLogs: state.auditLogs,
       }),
     }

@@ -15,6 +15,7 @@ import {
   Check,
   Shield,
   FileSpreadsheet,
+  Users,
 } from 'lucide-react';
 import { exportTransactionsToExcel } from '../../services/excelService';
 
@@ -24,7 +25,6 @@ export const SettingsModal: React.FC = () => {
   const business = useLedgerlyStore((state) => state.business);
   const updateBusiness = useLedgerlyStore((state) => state.updateBusiness);
   const setLanguage = useLedgerlyStore((state) => state.setLanguage);
-  const resetToDemoData = useLedgerlyStore((state) => state.resetToDemoData);
   const exportBackupJson = useLedgerlyStore((state) => state.exportBackupJson);
   const importBackupJson = useLedgerlyStore((state) => state.importBackupJson);
   const transactions = useLedgerlyStore((state) => state.transactions);
@@ -272,6 +272,18 @@ export const SettingsModal: React.FC = () => {
           <div className="pt-2 border-t border-border space-y-2">
             <button
               type="button"
+              onClick={() => {
+                closeSettings();
+                useLedgerlyStore.getState().openMultiUserModal();
+              }}
+              className="w-full h-11 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-primary border border-indigo-200 font-bold text-xs flex items-center justify-center gap-2 transition-all"
+            >
+              <Users size={16} />
+              <span>Manage Multi-User Access (Team)</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => window.open('https://wa.me/919876543210?text=Hi%20Ledgerly%20Support', '_blank')}
               className="w-full h-11 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 transition-all shadow-xs"
             >
@@ -282,15 +294,15 @@ export const SettingsModal: React.FC = () => {
             <button
               type="button"
               onClick={() => {
-                if (confirm('Reset all demo data back to default sample store?')) {
-                  resetToDemoData();
-                  alert('Reset completed.');
+                if (confirm('Reset app and start fresh First-Time Onboarding? All current data will be cleared.')) {
+                  useLedgerlyStore.getState().resetToFirstTimeSetup();
+                  closeSettings();
                 }
               }}
               className="w-full h-10 rounded-xl bg-surface-subtle hover:bg-rose-50 border border-border hover:border-rose-200 text-rose-600 font-bold text-xs flex items-center justify-center gap-2 transition-all"
             >
               <RotateCcw size={14} />
-              <span>Reset to Sample Demo Data</span>
+              <span>Reset & Re-run First-Time Setup</span>
             </button>
           </div>
         </div>

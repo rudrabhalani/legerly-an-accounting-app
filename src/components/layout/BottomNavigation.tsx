@@ -1,7 +1,7 @@
 import React from 'react';
 import { useLedgerlyStore } from '../../store/useLedgerlyStore';
 import { getTranslation } from '../../i18n/translations';
-import { Home, Users, Plus, Package, BarChart3 } from 'lucide-react';
+import { Home, Building2, Plus, Users, BarChart3 } from 'lucide-react';
 
 export const BottomNavigation: React.FC = () => {
   const activeTab = useLedgerlyStore((state) => state.activeTab);
@@ -25,16 +25,16 @@ export const BottomNavigation: React.FC = () => {
           <span className="text-[11px] mt-1">{t.home}</span>
         </button>
 
-        {/* Tab 2: Parties */}
+        {/* Tab 2: Bank Ledger */}
         <button
           type="button"
-          onClick={() => setActiveTab('parties')}
+          onClick={() => setActiveTab('bankLedger')}
           className={`flex flex-col items-center justify-center flex-1 h-full py-1 transition-all ${
-            activeTab === 'parties' ? 'text-primary font-bold' : 'text-slate-secondary hover:text-slate-primary'
+            activeTab === 'bankLedger' ? 'text-primary font-bold' : 'text-slate-secondary hover:text-slate-primary'
           }`}
         >
-          <Users size={20} strokeWidth={activeTab === 'parties' ? 2.5 : 2} />
-          <span className="text-[11px] mt-1">{t.parties}</span>
+          <Building2 size={20} strokeWidth={activeTab === 'bankLedger' ? 2.5 : 2} />
+          <span className="text-[11px] mt-1">Bank Ledger</span>
         </button>
 
         {/* Center: Quick Action Button [+] */}
@@ -49,16 +49,16 @@ export const BottomNavigation: React.FC = () => {
           </button>
         </div>
 
-        {/* Tab 4: Stock */}
+        {/* Tab 4: Parties */}
         <button
           type="button"
-          onClick={() => setActiveTab('stock')}
+          onClick={() => setActiveTab('parties')}
           className={`flex flex-col items-center justify-center flex-1 h-full py-1 transition-all ${
-            activeTab === 'stock' ? 'text-primary font-bold' : 'text-slate-secondary hover:text-slate-primary'
+            activeTab === 'parties' ? 'text-primary font-bold' : 'text-slate-secondary hover:text-slate-primary'
           }`}
         >
-          <Package size={20} strokeWidth={activeTab === 'stock' ? 2.5 : 2} />
-          <span className="text-[11px] mt-1">{t.stock}</span>
+          <Users size={20} strokeWidth={activeTab === 'parties' ? 2.5 : 2} />
+          <span className="text-[11px] mt-1">{t.parties}</span>
         </button>
 
         {/* Tab 5: Reports */}

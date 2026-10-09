@@ -296,3 +296,34 @@ describe('Profit & Loss Computations', () => {
     expect(pl.netProfit).toBe(1700000); // ₹17,000
   });
 });
+
+describe('Bank Ledger & Search Capabilities', () => {
+  it('fuzzy searches Indian banks like SBI returning State Bank of India', async () => {
+    const { searchIndianBanks } = await import('../data/indianBanks');
+    const results = searchIndianBanks('sbi');
+    expect(results.length).toBeGreaterThan(0);
+    expect(results[0].name).toBe('State Bank of India');
+
+    const bobResults = searchIndianBanks('bob');
+    expect(bobResults[0].name).toBe('Bank of Baroda');
+  });
+
+  it('feeds opening bank balance from onboarding into ledger as first entry', () => {
+    const bankAccount: Account = {
+      id: 'acc-sbi-1',
+      type: 'BANK',
+      bankName: 'State Bank of India',
+      bankCode: 'SBI',
+      nickname: 'SBI Business A/c',
+      openingBalance: 7500000, // ₹75,000
+      currentBalance: 7500000,
+    };
+
+    const ledger = buildAccountLedger(bankAccount, []);
+    expect(ledger.length).toBe(1);
+    expect(ledger[0].type).toBe('OPENING');
+    expect(ledger[0].runningBalance).toBe(7500000);
+    expect(ledger[0].credit).toBe(7500000);
+  });
+});
+
