@@ -106,10 +106,10 @@ export const StockScreen: React.FC = () => {
         <button
           type="button"
           onClick={openItemModal}
-          className="h-10 px-3.5 rounded-2xl bg-primary hover:bg-primary-hover text-white font-bold text-xs flex items-center gap-1.5 shadow-sm active:scale-95 transition-all flex-shrink-0"
+          className="h-10 px-4 rounded-xl bg-[#ED1A3B] hover:bg-[#D32F2F] text-white font-bold text-xs flex items-center gap-1.5 shadow-sm active:scale-95 transition-all flex-shrink-0"
         >
           <Plus size={16} />
-          <span>Add Item</span>
+          <span>+ Add Item</span>
         </button>
       </div>
 

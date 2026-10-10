@@ -7,57 +7,71 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Vyapar Primary Green
         primary: {
-          DEFAULT: '#4F46E5', // Royal Indigo
-          light: '#EEF2FF',   // Soft Indigo
-          hover: '#4338CA',
-          dark: '#3730A3',
+          DEFAULT: '#1DB450',
+          light: '#E8F9EE',
+          hover: '#18A047',
+          dark: '#137835',
         },
         moneyIn: {
-          DEFAULT: '#16A34A', // Emerald Green
-          tint: '#DCFCE7',    // Emerald Green Tint
-          hover: '#15803D',
-          dark: '#14532D',
+          DEFAULT: '#1DB450',
+          tint: '#E8F9EE',
+          hover: '#18A047',
+          dark: '#137835',
         },
         moneyOut: {
-          DEFAULT: '#DC2626', // Coral Red
-          tint: '#FEE2E2',    // Coral Red Tint
-          hover: '#B91C1C',
-          dark: '#7F1D1D',
+          DEFAULT: '#F24645',
+          tint: '#FEF0F0',
+          hover: '#DC3534',
+          dark: '#B02120',
         },
         warning: {
-          DEFAULT: '#F59E0B', // Amber
-          tint: '#FEF3C7',    // Amber Tint
-          hover: '#D97706',
+          DEFAULT: '#FF9800',
+          tint: '#FFF3E0',
+          hover: '#E68900',
         },
         surface: {
-          DEFAULT: '#FFFFFF', // White
-          muted: '#F8FAFC',   // Off-white
-          subtle: '#F1F5F9',
+          DEFAULT: '#FFFFFF',
+          muted: '#F5F7FA',
+          subtle: '#F0F2F5',
         },
         border: {
-          DEFAULT: '#E2E8F0', // Light grey
-          subtle: '#F1F5F9',
-          strong: '#CBD5E1',
+          DEFAULT: '#E5E8ED',
+          subtle: '#F0F2F5',
+          strong: '#CDD0D8',
         },
         slate: {
-          primary: '#0F172A', // Text Primary
-          secondary: '#64748B', // Text Secondary
-          muted: '#94A3B8',
+          primary: '#1A1D23',
+          secondary: '#6B7280',
+          muted: '#9CA3AF',
+        },
+        vyapar: {
+          green: '#1DB450',
+          'green-dark': '#137835',
+          'green-light': '#E8F9EE',
+          orange: '#FF9800',
+          red: '#F24645',
+          blue: '#1A73E8',
+          purple: '#7C3AED',
+          header: '#1A1D23',
         }
       },
       borderRadius: {
-        'card': '16px',
-        'button': '12px',
-        'input': '12px',
+        'card': '12px',
+        'button': '8px',
+        'input': '8px',
+        'chip': '20px',
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
       },
       boxShadow: {
-        'card': '0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.04)',
-        'elevated': '0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05)',
-        'floating': '0 10px 25px -5px rgba(79, 70, 229, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+        'card': '0 1px 4px 0 rgba(0,0,0,0.08)',
+        'elevated': '0 2px 8px 0 rgba(0,0,0,0.12)',
+        'floating': '0 8px 24px 0 rgba(29,180,80,0.15), 0 4px 8px 0 rgba(0,0,0,0.1)',
+        'nav': '0 -1px 6px 0 rgba(0,0,0,0.08)',
+        'header': '0 1px 4px 0 rgba(0,0,0,0.15)',
       }
     },
   },

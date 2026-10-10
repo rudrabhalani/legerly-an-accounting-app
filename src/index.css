@@ -8,8 +8,8 @@
   }
   
   html, body {
-    background-color: #F8FAFC;
-    color: #0F172A;
+    background-color: #F5F7FA;
+    color: #1A1D23;
     font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -27,24 +27,38 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Vyapar-style scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #CDD0D8; border-radius: 4px; }
+
 /* Custom scrollbar hiding for horizontal chip lists */
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
+.scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
 
 /* Soft transition effects */
-.transition-smooth {
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
+.transition-smooth { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
 
 /* Safe area insets for mobile navigation */
-.safe-bottom {
-  padding-bottom: env(safe-area-inset-bottom, 16px);
-}
-.safe-top {
-  padding-top: env(safe-area-inset-top, 16px);
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom, 16px); }
+.safe-top { padding-top: env(safe-area-inset-top, 16px); }
+.pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+/* Vyapar-style ripple for buttons */
+button:active { transform: scale(0.97); }
+
+/* Vyapar money in / out colors */
+.text-money-in { color: #1DB450; }
+.text-money-out { color: #F24645; }
+.bg-money-in { background-color: #1DB450; }
+.bg-money-out { background-color: #F24645; }
+
+/* Vyapar card style */
+.vyapar-card {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 1px 4px 0 rgba(0,0,0,0.08);
+  border: 1px solid #E5E8ED;
 }

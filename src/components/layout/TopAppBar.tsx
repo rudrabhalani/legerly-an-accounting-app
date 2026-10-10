@@ -1,8 +1,17 @@
 import React, { useState } from 'react';
 import { useLedgerlyStore } from '../../store/useLedgerlyStore';
 import { getTranslation } from '../../i18n/translations';
-import { Calendar, Settings as SettingsIcon, Globe, Users, Crown } from 'lucide-react';
+import {
+  Menu,
+  Bell,
+  Settings as SettingsIcon,
+  ChevronDown,
+  Globe,
+  Users,
+  Search,
+} from 'lucide-react';
 import { LanguageCode } from '../../types';
+import { VyaparDrawer } from './VyaparDrawer';
 
 export const TopAppBar: React.FC = () => {
   const business = useLedgerlyStore((state) => state.business);
@@ -15,112 +24,149 @@ export const TopAppBar: React.FC = () => {
   const activeFY = useLedgerlyStore((state) => state.activeFinancialYear);
 
   const t = getTranslation(business.language);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [showLangDropdown, setShowLangDropdown] = useState(false);
+  const [showBizDropdown, setShowBizDropdown] = useState(false);
 
   const currentUser = users.find((u) => u.id === currentUserId) || users[0];
 
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return t.goodMorning;
-    if (hour < 17) return t.goodAfternoon;
-    return t.goodEvening;
-  };
-
   return (
-    <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-border px-4 py-3">
-      <div className="max-w-7xl mx-auto flex items-center justify-between">
-        {/* Left: Greeting & Business */}
-        <div className="flex flex-col">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[11px] font-semibold tracking-wide uppercase text-slate-secondary">
-              {getGreeting()}, {currentUser?.name || business.ownerName || 'Merchant'}
-            </span>
-            {currentUser?.role === 'OWNER' && (
-              <span className="px-1.5 py-0.2 rounded-md bg-amber-100 text-amber-800 text-[9px] font-bold flex items-center gap-0.5">
-                <Crown size={10} /> Owner
-              </span>
-            )}
-          </div>
-          <h2 className="text-lg font-bold text-slate-primary leading-tight truncate max-w-[180px] sm:max-w-xs">
-            {business.name || 'Ledgerly Business'}
-          </h2>
-        </div>
-
-        {/* Right: Actions */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Financial Year Button */}
-          <button
-            type="button"
-            onClick={openFinancialYearModal}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-primary-light hover:bg-indigo-100 border border-primary/20 text-primary text-xs font-bold transition-all active:scale-95 shadow-xs"
-            title="Financial Year & Rollover"
-          >
-            <Calendar size={13} />
-            <span className="hidden sm:inline">FY</span>
-            <span>{activeFY}</span>
-          </button>
-
-          {/* Multi-User Access (Team) Button */}
-          <button
-            type="button"
-            onClick={openMultiUserModal}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-primary text-xs font-bold transition-all active:scale-95 shadow-xs"
-            title="Manage Team & Shared Access"
-          >
-            <Users size={14} />
-            <span className="hidden sm:inline">Team</span>
-            <span className="w-4 h-4 rounded-full bg-primary text-white text-[10px] flex items-center justify-center font-bold">
-              {users.length || 1}
-            </span>
-          </button>
-
-          {/* Language Switcher */}
-          <div className="relative">
+    <>
+      <header className="sticky top-0 z-30 bg-[#ED1A3B] text-white shadow-md">
+        <div className="max-w-7xl mx-auto flex items-center justify-between px-3 sm:px-4 h-14">
+          {/* Left: Hamburger Menu (☰) + Business Name Dropdown */}
+          <div className="flex items-center gap-2.5 min-w-0">
+            {/* Hamburger Button to open Vyapar Side Drawer */}
             <button
               type="button"
-              onClick={() => setShowLangDropdown(!showLangDropdown)}
-              className="p-1.5 rounded-xl bg-surface-subtle hover:bg-slate-200/60 border border-border text-slate-secondary transition-all active:scale-95"
-              title="Change Language"
+              onClick={() => setIsDrawerOpen(true)}
+              className="w-9 h-9 rounded-lg flex items-center justify-center text-white hover:bg-white/10 active:scale-95 transition-colors flex-shrink-0"
+              aria-label="Open Navigation Menu"
             >
-              <Globe size={16} />
+              <Menu size={22} strokeWidth={2.2} />
             </button>
 
-            {showLangDropdown && (
-              <div className="absolute right-0 mt-1.5 w-32 bg-white rounded-2xl shadow-elevated border border-border py-1.5 z-40">
-                {[
-                  { code: 'en' as LanguageCode, label: 'English' },
-                  { code: 'hi' as LanguageCode, label: 'हिन्दी' },
-                  { code: 'gu' as LanguageCode, label: 'ગુજરાતી' },
-                ].map((l) => (
+            {/* Business avatar & name */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowBizDropdown(!showBizDropdown)}
+                className="flex items-center gap-1.5 min-w-0 text-left active:opacity-90"
+              >
+                <div className="w-8 h-8 rounded-lg bg-white text-[#ED1A3B] font-extrabold flex items-center justify-center flex-shrink-0 shadow-xs text-sm">
+                  {(business.name || 'S').substring(0, 1).toUpperCase()}
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-white text-[13px] sm:text-sm font-bold leading-tight truncate max-w-[140px] sm:max-w-[200px]">
+                    {business.name || 'Shree Sweet'}
+                  </span>
+                  <span className="text-white/80 text-[10px] leading-tight font-medium">
+                    FY {activeFY}
+                  </span>
+                </div>
+                <ChevronDown size={14} className="text-white/80 flex-shrink-0" />
+              </button>
+
+              {/* Company Switcher Dropdown */}
+              {showBizDropdown && (
+                <div className="absolute left-0 top-full mt-2 w-52 bg-white rounded-xl shadow-elevated border border-gray-200 py-1.5 z-50 text-gray-800 animate-in fade-in zoom-in-95">
+                  <div className="px-3.5 py-1.5 border-b border-gray-100">
+                    <span className="text-[10px] uppercase font-bold text-gray-400">Current Business</span>
+                    <span className="text-xs font-bold text-gray-900 block truncate">{business.name || 'Shree Sweet'}</span>
+                  </div>
                   <button
-                    key={l.code}
                     type="button"
-                    onClick={() => {
-                      setLanguage(l.code);
-                      setShowLangDropdown(false);
-                    }}
-                    className={`w-full text-left px-3 py-2 text-xs font-medium hover:bg-primary-light hover:text-primary ${
-                      business.language === l.code ? 'text-primary font-bold bg-primary-light/50' : 'text-slate-primary'
-                    }`}
+                    onClick={() => { openFinancialYearModal(); setShowBizDropdown(false); }}
+                    className="w-full text-left px-3.5 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                   >
-                    {l.label}
+                    <span>📅</span> Change Financial Year
                   </button>
-                ))}
-              </div>
-            )}
+                  <button
+                    type="button"
+                    onClick={() => { openSettings(); setShowBizDropdown(false); }}
+                    className="w-full text-left px-3.5 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    <span>⚙️</span> Business Profile & GST
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { openMultiUserModal(); setShowBizDropdown(false); }}
+                    className="w-full text-left px-3.5 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    <span>👥</span> Manage Team ({users.length || 1})
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Settings Button */}
-          <button
-            type="button"
-            onClick={openSettings}
-            className="p-1.5 rounded-xl bg-surface-subtle hover:bg-slate-200/60 border border-border text-slate-secondary hover:text-slate-primary transition-all active:scale-95"
-            title="Settings & Profile"
-          >
-            <SettingsIcon size={16} />
-          </button>
+          {/* Right: Actions (Language, Multi-user, Settings) */}
+          <div className="flex items-center gap-1">
+            {/* Language Switcher */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowLangDropdown(!showLangDropdown)}
+                className="w-9 h-9 rounded-lg flex items-center justify-center text-white/90 hover:bg-white/10 transition-colors"
+                title="Change Language"
+              >
+                <Globe size={18} />
+              </button>
+              {showLangDropdown && (
+                <div className="absolute right-0 mt-1 w-32 bg-white rounded-xl shadow-elevated border border-gray-200 py-1.5 z-50 animate-in fade-in zoom-in-95">
+                  {[
+                    { code: 'en' as LanguageCode, label: 'English' },
+                    { code: 'hi' as LanguageCode, label: 'हिन्दी' },
+                    { code: 'gu' as LanguageCode, label: 'ગુજરાતી' },
+                  ].map((l) => (
+                    <button
+                      key={l.code}
+                      type="button"
+                      onClick={() => { setLanguage(l.code); setShowLangDropdown(false); }}
+                      className={`w-full text-left px-3 py-2 text-xs font-medium hover:bg-gray-50 ${
+                        business.language === l.code ? 'text-[#ED1A3B] font-bold bg-red-50' : 'text-gray-700'
+                      }`}
+                    >
+                      {l.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Team / Multi-User */}
+            <button
+              type="button"
+              onClick={openMultiUserModal}
+              className="w-9 h-9 rounded-lg flex items-center justify-center text-white/90 hover:bg-white/10 transition-colors relative"
+              title="Team Access"
+            >
+              <Users size={18} />
+              {users.length > 1 && (
+                <span className="absolute top-1 right-1 w-3.5 h-3.5 bg-yellow-400 text-black text-[9px] font-extrabold rounded-full flex items-center justify-center">
+                  {users.length}
+                </span>
+              )}
+            </button>
+
+            {/* Settings */}
+            <button
+              type="button"
+              onClick={openSettings}
+              className="w-9 h-9 rounded-lg flex items-center justify-center text-white/90 hover:bg-white/10 transition-colors"
+              title="Settings"
+            >
+              <SettingsIcon size={18} />
+            </button>
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
+
+      {/* Vyapar Side Navigation Drawer */}
+      <VyaparDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+      />
+    </>
   );
 };

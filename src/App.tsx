@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useLedgerlyStore } from './store/useLedgerlyStore';
 import { TopAppBar } from './components/layout/TopAppBar';
 import { BottomNavigation } from './components/layout/BottomNavigation';
-import { HomeStickyBottomBar } from './components/layout/HomeStickyBottomBar';
 import { QuickAddSheet } from './components/layout/QuickAddSheet';
 import { SplashScreen } from './components/brand/SplashScreen';
 import { PinLockScreen } from './components/modals/PinLockScreen';
@@ -79,8 +78,6 @@ export function App() {
         {activeTab === 'reports' && <ReportsScreen />}
       </main>
 
-      {/* Home Screen Sticky Quick Action Buttons */}
-      {activeTab === 'home' && <HomeStickyBottomBar />}
 
       {/* Bottom Navigation with 5 Tabs (Home, Bank Ledger, [+], Parties, Reports) */}
       <BottomNavigation />

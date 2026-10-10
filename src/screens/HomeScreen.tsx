@@ -408,6 +408,7 @@ export const HomeScreen: React.FC = () => {
             <ChevronDown size={14} />
           </button>
 
+          {/* Quick Dropdown Menu */}
           {showAddMenu && (
             <div className="absolute right-0 mt-1.5 w-52 bg-white dark:bg-slate-800 rounded-2xl shadow-elevated border border-slate-200 dark:border-slate-700 py-1.5 z-40 animate-in fade-in zoom-in-95">
               <button
@@ -471,7 +472,130 @@ export const HomeScreen: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. ACCOUNTING OPTIONS GRID: 12 CLEAN RESPONSIVE TILES (2 COLS PHONE, 3-4 COLS TABLET/PC) */}
+      {/* 2. RED, BLUE, GREEN OUTLINE BOXES (Day Account Summary for Selected Date) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {/* GREEN OUTLINE BOX: MONEY IN */}
+        <div
+          onClick={() => setTxnFilter('IN')}
+          className="p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-slate-900 border-2 border-emerald-500 shadow-xs flex flex-col justify-between cursor-pointer hover:bg-emerald-50/30 transition-all active:scale-98"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+              Money In ({periodLabel})
+            </span>
+            <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 flex items-center justify-center">
+              <ArrowDownLeft size={16} strokeWidth={2.5} />
+            </div>
+          </div>
+          <div className="mt-2">
+            <span className="text-xl sm:text-2xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums block">
+              +{formatINR(periodCredit)}
+            </span>
+            <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 block">
+              {countInflow} sales & collections
+            </span>
+          </div>
+        </div>
+
+        {/* RED OUTLINE BOX: MONEY OUT */}
+        <div
+          onClick={() => setTxnFilter('OUT')}
+          className="p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-slate-900 border-2 border-rose-500 shadow-xs flex flex-col justify-between cursor-pointer hover:bg-rose-50/30 transition-all active:scale-98"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-rose-600 dark:text-rose-400">
+              Money Out ({periodLabel})
+            </span>
+            <div className="w-7 h-7 rounded-lg bg-rose-50 dark:bg-rose-950/50 text-rose-600 flex items-center justify-center">
+              <ArrowUpRight size={16} strokeWidth={2.5} />
+            </div>
+          </div>
+          <div className="mt-2">
+            <span className="text-xl sm:text-2xl font-black text-rose-600 dark:text-rose-400 tabular-nums block">
+              −{formatINR(periodDebit)}
+            </span>
+            <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 block">
+              {countOutflow} purchases & expenses
+            </span>
+          </div>
+        </div>
+
+        {/* BLUE OUTLINE BOX: NET BALANCE */}
+        <div
+          onClick={() => openDayBook()}
+          className="p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-slate-900 border-2 border-blue-500 shadow-xs flex flex-col justify-between cursor-pointer hover:bg-blue-50/30 transition-all active:scale-98"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+              Net Balance ({periodLabel})
+            </span>
+            <div className="w-7 h-7 rounded-lg bg-blue-50 dark:bg-blue-950/50 text-blue-600 flex items-center justify-center">
+              <Wallet size={16} strokeWidth={2.5} />
+            </div>
+          </div>
+          <div className="mt-2">
+            <span
+              className={`text-xl sm:text-2xl font-black tabular-nums block ${
+                periodNet >= 0
+                  ? 'text-blue-600 dark:text-blue-400'
+                  : 'text-rose-600 dark:text-rose-400'
+              }`}
+            >
+              {periodNet >= 0 ? '+' : '−'}
+              {formatINR(Math.abs(periodNet))}
+            </span>
+            <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 block">
+              Daily net account summary
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. VYAPAR QUICK ACTION STRIP (Signature Vyapar Red + Blue Buttons) */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+        <button
+          type="button"
+          onClick={() => openInvoiceScreen('SALE')}
+          className="h-10 px-4 rounded-xl bg-[#ED1A3B] hover:bg-[#D32F2F] text-white font-bold text-xs flex items-center gap-1.5 shadow-sm active:scale-95 transition-all flex-shrink-0"
+        >
+          <Plus size={16} strokeWidth={2.5} />
+          <span>+ Add Sale</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => openInvoiceScreen('PURCHASE')}
+          className="h-10 px-4 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-300 font-bold text-xs flex items-center gap-1.5 active:scale-95 transition-all flex-shrink-0"
+        >
+          <Plus size={16} strokeWidth={2.5} />
+          <span>+ Add Purchase</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => openPaymentIn()}
+          className="h-10 px-3.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-xs flex items-center gap-1.5 active:scale-95 transition-all flex-shrink-0"
+        >
+          <ArrowDownLeft size={15} className="text-emerald-700" />
+          <span>Payment In</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => openPaymentOut()}
+          className="h-10 px-3.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 font-bold text-xs flex items-center gap-1.5 active:scale-95 transition-all flex-shrink-0"
+        >
+          <ArrowUpRight size={15} className="text-rose-700" />
+          <span>Payment Out</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => openExpenseModal()}
+          className="h-10 px-3.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-bold text-xs flex items-center gap-1.5 active:scale-95 transition-all flex-shrink-0"
+        >
+          <CreditCard size={15} className="text-amber-700" />
+          <span>Expense</span>
+        </button>
+      </div>
+
+      {/* 4. ACCOUNTING OPTIONS GRID: 12 CLEAN RESPONSIVE TILES */}
       <div className="space-y-2">
         <div className="flex items-center justify-between px-1">
           <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">

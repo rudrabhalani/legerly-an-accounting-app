@@ -105,10 +105,10 @@ export const PartiesScreen: React.FC = () => {
         <button
           type="button"
           onClick={openPartyModal}
-          className="h-10 px-3.5 rounded-2xl bg-primary hover:bg-primary-hover text-white font-bold text-xs flex items-center gap-1.5 shadow-sm active:scale-95 transition-all flex-shrink-0"
+          className="h-10 px-4 rounded-xl bg-[#ED1A3B] hover:bg-[#D32F2F] text-white font-bold text-xs flex items-center gap-1.5 shadow-sm active:scale-95 transition-all flex-shrink-0"
         >
           <UserPlus size={16} />
-          <span>Add Party</span>
+          <span>+ Add Party</span>
         </button>
       </div>
 
