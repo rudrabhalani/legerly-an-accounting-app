@@ -8,7 +8,7 @@ import {
   paiseToRupees,
 } from '../../utils/formatters';
 import { calculatePartyNetBalance } from '../../utils/accounting';
-import { generateInvoicePdf, generatePartyStatementPdf } from '../../services/pdfService';
+import { generateInvoicePdf, generatePartyStatementPdf, shareBillPdfFile } from '../../services/pdfService';
 import {
   X,
   Printer,
@@ -154,56 +154,38 @@ export const TransactionDetailModal: React.FC = () => {
   const handleShareOnWhatsApp = async () => {
     try {
       if (inv) {
-        const doc = generateInvoicePdf(inv, business, party, account);
-        const fileName = `${inv.number.replace(/[\/\\]/g, '_')}.pdf`;
-        const pdfBlob = doc.output('blob');
-        const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-
-        const dueAmount = Math.max(0, inv.total - inv.paidAmount);
-        const textSummary = `Hello ${inv.partyName},\nHere are your bill details from ${business.name}:\n` +
-          `• Invoice: ${inv.number}\n• Date: ${inv.date}\n• Total Amount: ₹${paiseToRupees(inv.total).toFixed(2)}\n` +
-          `• Settled: ₹${paiseToRupees(inv.paidAmount).toFixed(2)}\n• Balance Due: ₹${paiseToRupees(dueAmount).toFixed(2)}`;
-
-        // 1. Try native Web Share API with actual PDF file
-        if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-          try {
-            await navigator.share({
-              files: [pdfFile],
-              title: `${inv.number}.pdf`,
-              text: textSummary,
-            });
-            setShareSuccess('PDF shared via your device sharing sheet!');
-            setTimeout(() => setShareSuccess(null), 3000);
-            return;
-          } catch (err: any) {
-            if (err?.name === 'AbortError') return;
+        const res = await shareBillPdfFile({
+          invoice: inv,
+          business,
+          party,
+          account,
+        });
+        setShareSuccess(res.message);
+        setTimeout(() => setShareSuccess(null), 3500);
+      } else if (txn) {
+        const doc = party ? generatePartyStatementPdf(party, [], business) : null;
+        const fileName = `RECEIPT-${txn.id.substring(4, 12)}.pdf`;
+        if (doc) {
+          doc.save(fileName);
+          const pdfBlob = doc.output('blob');
+          const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf', lastModified: Date.now() });
+          const text = `Payment receipt from ${business.name}: ₹${paiseToRupees(txn.amount).toFixed(2)} on ${txn.date} via ${txn.mode}`;
+          if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+            try {
+              await navigator.share({
+                files: [pdfFile],
+                title: fileName,
+                text,
+              });
+              setShareSuccess('Receipt PDF shared!');
+              setTimeout(() => setShareSuccess(null), 3000);
+              return;
+            } catch (err: any) {
+              if (err?.name === 'AbortError') return;
+            }
           }
         }
-
-        // 2. Fallback: Download file directly and open WhatsApp with party contact and message
-        doc.save(fileName);
-        const phoneNum = party?.phone ? party.phone.replace(/\D/g, '') : '';
-        const fullMessage = encodeURIComponent(
-          `${textSummary}\n\n(📄 PDF file "${fileName}" has been downloaded to attach directly).`
-        );
-        if (phoneNum) {
-          window.open(`https://wa.me/91${phoneNum}?text=${fullMessage}`, '_blank');
-        } else {
-          window.open(`https://wa.me/?text=${fullMessage}`, '_blank');
-        }
-        setShareSuccess(`PDF downloaded (${fileName}). Opening WhatsApp...`);
-        setTimeout(() => setShareSuccess(null), 4000);
-      } else if (txn) {
-        const phoneNum = party?.phone ? party.phone.replace(/\D/g, '') : '';
-        const text = encodeURIComponent(
-          `Payment receipt from ${business.name}:\n` +
-            `• Amount: ₹${paiseToRupees(txn.amount).toFixed(2)}\n• Date: ${txn.date}\n• Mode: ${txn.mode}`
-        );
-        if (phoneNum) {
-          window.open(`https://wa.me/91${phoneNum}?text=${text}`, '_blank');
-        } else {
-          window.open(`https://wa.me/?text=${text}`, '_blank');
-        }
+        alert('File saved, please attach it in WhatsApp');
       }
     } catch (err) {
       alert('Error preparing WhatsApp document share. Please try downloading the PDF directly.');

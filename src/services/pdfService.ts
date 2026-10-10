@@ -289,9 +289,7 @@ export function generateInvoicePdf(
   addSummaryRow('Paid / Received', formatINR(invoice.paidAmount));
 
   const due = Math.max(0, invoice.total - invoice.paidAmount);
-  if (due > 0) {
-    addSummaryRow('Balance Due', formatINR(due), true);
-  }
+  addSummaryRow('Balance Due', formatINR(due), true, due > 0);
 
   // Footer & Authorized Signatory
   doc.setFont('helvetica', 'normal');
@@ -476,4 +474,92 @@ export function generateRegisterPdf(
   doc.text(`Total Amount: ${formatINR(totalPaise)}`, 196, finalY + 10, { align: 'right' });
 
   return doc;
+}
+
+export interface ShareBillPdfOptions {
+  invoice: Invoice;
+  business: Business;
+  party?: Party;
+  account?: Account;
+}
+
+/**
+ * Generates the bill as an authentic PDF file, saves it to the device,
+ * and shares the actual PDF FILE through native Web Share API (with file attachment).
+ * If native file sharing is unavailable, falls back to downloading the file
+ * and shows: "File saved, please attach it in WhatsApp".
+ * Never falls back to text-only links silently.
+ */
+export async function shareBillPdfFile({
+  invoice,
+  business,
+  party,
+  account,
+}: ShareBillPdfOptions): Promise<{ success: boolean; message: string; fileName: string; sharedViaNativeSheet: boolean }> {
+  const doc = generateInvoicePdf(invoice, business, party, account);
+  
+  // Format clean file name: e.g. BILL/2627/001 -> BILL-2627-001.pdf
+  const cleanNumber = (invoice.number || 'BILL')
+    .replace(/[^a-zA-Z0-9.-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+  const fileName = `${cleanNumber}.pdf`;
+
+  // Always save / download the file to the device
+  try {
+    doc.save(fileName);
+  } catch (err) {
+    console.warn('doc.save error:', err);
+  }
+
+  // Create real File object from PDF binary Blob
+  const pdfBlob = doc.output('blob');
+  const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf', lastModified: Date.now() });
+
+  const dueAmount = Math.max(0, invoice.total - invoice.paidAmount);
+  const partyName = party?.name || invoice.partyName || 'Customer';
+  const shopName = business.name || 'Shree Sweet';
+  const caption = `Dear ${partyName}, here is your Bill #${invoice.number} of ${formatINR(invoice.total)} from ${shopName}. Balance due: ${formatINR(dueAmount)}. Thank you!`;
+
+  // 1. Try native Web Share API with actual PDF File
+  if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+    const canShareFiles = typeof navigator.canShare === 'function' && navigator.canShare({ files: [pdfFile] });
+    if (canShareFiles) {
+      try {
+        await navigator.share({
+          files: [pdfFile],
+          title: fileName,
+          text: caption,
+        });
+        return {
+          success: true,
+          message: `Bill PDF (${fileName}) shared successfully with file attachment.`,
+          fileName,
+          sharedViaNativeSheet: true,
+        };
+      } catch (err: any) {
+        if (err?.name === 'AbortError') {
+          return {
+            success: true,
+            message: `Bill PDF (${fileName}) saved to device. Share dialog closed.`,
+            fileName,
+            sharedViaNativeSheet: true,
+          };
+        }
+        console.warn('Native file share failed:', err);
+      }
+    }
+  }
+
+  // 2. Fallback: file is saved, alert the user explicitly. Never silently send text only.
+  const fallbackMsg = `File saved, please attach it in WhatsApp`;
+  if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+    window.alert(fallbackMsg);
+  }
+  return {
+    success: true,
+    message: fallbackMsg,
+    fileName,
+    sharedViaNativeSheet: false,
+  };
 }

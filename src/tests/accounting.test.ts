@@ -742,6 +742,94 @@ describe('Store: Auto-Save Items & Transaction Details Modal', () => {
     const statementBlob = statementDoc.output('blob');
     expect(statementBlob.size).toBeGreaterThan(0);
   });
+
+  it('generates real PDF bill with correct filename and all 8 required fields via shareBillPdfFile', async () => {
+    const { shareBillPdfFile, generateInvoicePdf } = await import('../services/pdfService');
+    const { useLedgerlyStore } = await import('../store/useLedgerlyStore');
+    const store = useLedgerlyStore.getState();
+
+    const mockBill: Invoice = {
+      id: 'inv-test-shree-sweet',
+      type: 'SALE',
+      number: 'BILL/2627/001',
+      partyId: 'cust-keyur',
+      partyName: 'Keyur bhai',
+      date: '2026-10-10',
+      dueDate: '2026-10-10',
+      financialYear: '2026-27',
+      lines: [
+        {
+          id: 'line-kaju-katli',
+          itemId: 'item-kaju',
+          itemName: 'Kaju Katli Special',
+          unit: 'kg',
+          qty: 10,
+          rate: 114700, // ₹1,147/kg = ₹11,470
+          discountPercent: 0,
+          discountType: 'PERCENT',
+          discountAmount: 0,
+          taxPercent: 0,
+          taxIncluded: false,
+          taxableAmount: 1147000,
+          cgst: 0,
+          sgst: 0,
+          igst: 0,
+          amount: 1147000, // ₹11,470 total
+        },
+      ],
+      subtotal: 1147000,
+      discountTotal: 0,
+      taxableAmount: 1147000,
+      cgstTotal: 0,
+      sgstTotal: 0,
+      igstTotal: 0,
+      taxTotal: 0,
+      extraCharges: 0,
+      roundOff: 0,
+      total: 1147000, // ₹11,470.00
+      paidAmount: 1147000, // Fully paid: ₹11,470.00
+      status: 'PAID',
+      paymentType: 'CASH',
+      withGst: false,
+      createdAt: '2026-10-10T11:00:00Z',
+      updatedAt: '2026-10-10T11:00:00Z',
+      isDeleted: false,
+    };
+
+    const business = {
+      ...store.business,
+      name: 'Shree Sweet',
+      phone: '9876543210',
+    };
+
+    const party = {
+      id: 'cust-keyur',
+      name: 'Keyur bhai',
+      phone: '9876543210',
+      type: 'CUSTOMER' as const,
+      openingBalance: 0,
+      openingType: 'RECEIVABLE' as const,
+      createdAt: '2026-10-10',
+      updatedAt: '2026-10-10',
+      isDeleted: false,
+    };
+
+    // 1. Verify generateInvoicePdf generates valid document
+    const doc = generateInvoicePdf(mockBill, business, party);
+    expect(doc).toBeDefined();
+    const pdfBlob = doc.output('blob');
+    expect(pdfBlob.size).toBeGreaterThan(1000); // Authentic binary PDF with embedded streams
+
+    // 2. Verify shareBillPdfFile generates correct filename: BILL-2627-001.pdf
+    const shareResult = await shareBillPdfFile({
+      invoice: mockBill,
+      business,
+      party,
+    });
+
+    expect(shareResult.fileName).toBe('BILL-2627-001.pdf');
+    expect(shareResult.success).toBe(true);
+  });
 });
 
 

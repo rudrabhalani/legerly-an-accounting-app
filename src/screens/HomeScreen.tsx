@@ -28,17 +28,16 @@ import {
   Scale,
   Search,
   Calendar,
-  Clock,
+  Plus,
+  CreditCard,
 } from 'lucide-react';
 
 export type HomeTimePeriod =
   | 'TODAY'
-  | 'LAST_DAY'
-  | 'LAST_WEEK'
-  | 'LAST_MONTH'
-  | 'LAST_YEAR'
-  | 'CUSTOM'
-  | 'ALL';
+  | 'YESTERDAY'
+  | 'THIS_WEEK'
+  | 'THIS_MONTH'
+  | 'CUSTOM';
 
 export const HomeScreen: React.FC = () => {
   const accounts = useLedgerlyStore((state) => state.accounts);
@@ -47,28 +46,35 @@ export const HomeScreen: React.FC = () => {
   const items = useLedgerlyStore((state) => state.items);
   const stockMovements = useLedgerlyStore((state) => state.stockMovements);
   const invoices = useLedgerlyStore((state) => state.invoices);
-  const language = useLedgerlyStore((state) => state.business.language);
-  const openMoneyIn = useLedgerlyStore((state) => state.openMoneyIn);
+  const business = useLedgerlyStore((state) => state.business);
+  const openInvoiceScreen = useLedgerlyStore((state) => state.openInvoiceScreen);
+  const openPaymentIn = useLedgerlyStore((state) => state.openPaymentIn);
+  const openPaymentOut = useLedgerlyStore((state) => state.openPaymentOut);
+  const openExpenseModal = useLedgerlyStore((state) => state.openExpenseModal);
   const openAccountLedger = useLedgerlyStore((state) => state.openAccountLedger);
   const openReconcileModal = useLedgerlyStore((state) => state.openReconcileModal);
   const openTransactionDetail = useLedgerlyStore((state) => state.openTransactionDetail);
-  const openPeriodCashflow = useLedgerlyStore((state) => state.openPeriodCashflow);
   const setActiveTab = useLedgerlyStore((state) => state.setActiveTab);
 
-  const t = getTranslation(language);
+  const t = getTranslation(business.language);
 
-  // Expanded Bank List Toggle
+  // Date Filter State (default to Today)
+  const [selectedPeriod, setSelectedPeriod] = useState<HomeTimePeriod>('TODAY');
+  const [customStartDate, setCustomStartDate] = useState<string>(getTodayDateString());
+  const [customEndDate, setCustomEndDate] = useState<string>(getTodayDateString());
+
+  // Quick "+ Add" dropdown toggle
+  const [showAddMenu, setShowAddMenu] = useState(false);
+
+  // Collapsible Bank & Cash details toggle
+  const [showAccountDetails, setShowAccountDetails] = useState(false);
   const [isBankListExpanded, setIsBankListExpanded] = useState(false);
 
-  // Date & Timeframe selector state (moved here from upper right corner)
-  const [selectedPeriod, setSelectedPeriod] = useState<HomeTimePeriod>('TODAY');
-  const [customDate, setCustomDate] = useState<string>(getTodayDateString());
-
-  // Search & Filter state for homepage transaction list
+  // Search & Filter state for transactions list
   const [searchQuery, setSearchQuery] = useState('');
   const [txnFilter, setTxnFilter] = useState<'ALL' | 'SALE' | 'PURCHASE' | 'IN' | 'OUT' | 'EXPENSE'>('ALL');
 
-  // Computations
+  // Overall account balances
   const { total, cashTotal, bankTotal, accountBalances } = calculateTotalBalance(accounts, transactions);
   const { toReceive, toPay } = calculateReceivablesAndPayables(parties, transactions, invoices);
   const { lowStockItems } = calculateTotalStockValue(items, stockMovements);
@@ -80,7 +86,7 @@ export const HomeScreen: React.FC = () => {
   const accountMap = new Map(accounts.map((a) => [a.id, a]));
   const invoiceMap = new Map(invoices.map((i) => [i.id, i]));
 
-  // Date boundaries for timeframe selector
+  // Date boundaries for selected timeframe
   const { startDate, endDate, periodLabel, fullDisplayDate } = useMemo(() => {
     const today = new Date();
     const todayStr = getTodayDateString();
@@ -94,83 +100,77 @@ export const HomeScreen: React.FC = () => {
           periodLabel: 'Today',
           fullDisplayDate: formatFullDate(todayStr),
         };
-      case 'LAST_DAY': {
+
+      case 'YESTERDAY': {
         const yesterday = new Date(today);
         yesterday.setDate(yesterday.getDate() - 1);
         const yStr = formatDateOnly(yesterday);
         return {
           startDate: yStr,
           endDate: yStr,
-          periodLabel: 'Last Day (Yesterday)',
+          periodLabel: 'Yesterday',
           fullDisplayDate: formatFullDate(yStr),
         };
       }
-      case 'LAST_WEEK': {
-        const weekAgo = new Date(today);
-        weekAgo.setDate(weekAgo.getDate() - 7);
-        const wStr = formatDateOnly(weekAgo);
-        return {
-          startDate: wStr,
-          endDate: todayStr,
-          periodLabel: 'Last Week',
-          fullDisplayDate: `${formatFullDate(wStr)} – ${formatFullDate(todayStr)}`,
-        };
-      }
-      case 'LAST_MONTH': {
-        const monthAgo = new Date(today);
-        monthAgo.setDate(monthAgo.getDate() - 30);
-        const mStr = formatDateOnly(monthAgo);
-        return {
-          startDate: mStr,
-          endDate: todayStr,
-          periodLabel: 'Last Month',
-          fullDisplayDate: `${formatFullDate(mStr)} – ${formatFullDate(todayStr)}`,
-        };
-      }
-      case 'LAST_YEAR': {
-        const yearAgo = new Date(today);
-        yearAgo.setDate(yearAgo.getDate() - 365);
-        const yStr = formatDateOnly(yearAgo);
-        return {
-          startDate: yStr,
-          endDate: todayStr,
-          periodLabel: 'Last Year',
-          fullDisplayDate: `${formatFullDate(yStr)} – ${formatFullDate(todayStr)}`,
-        };
-      }
-      case 'CUSTOM':
-        return {
-          startDate: customDate,
-          endDate: customDate,
-          periodLabel: 'Date-wise',
-          fullDisplayDate: formatFullDate(customDate),
-        };
-      case 'ALL':
-      default:
-        return {
-          startDate: '1970-01-01',
-          endDate: '2099-12-31',
-          periodLabel: 'All Time',
-          fullDisplayDate: 'All Recorded Dates',
-        };
-    }
-  }, [selectedPeriod, customDate]);
 
-  // Aggregate Credit (In) & Debit (Out) totals for the selected timeframe
-  const { periodCredit, periodDebit, periodNet, countInPeriod } = useMemo(() => {
+      case 'THIS_WEEK': {
+        const d = new Date(today);
+        const day = d.getDay();
+        const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday
+        const monday = new Date(d.setDate(diff));
+        const mondayStr = formatDateOnly(monday);
+        return {
+          startDate: mondayStr,
+          endDate: todayStr,
+          periodLabel: 'This Week',
+          fullDisplayDate: `${formatFullDate(mondayStr)} – ${formatFullDate(todayStr)}`,
+        };
+      }
+
+      case 'THIS_MONTH': {
+        const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        const firstOfMonthStr = formatDateOnly(firstOfMonth);
+        return {
+          startDate: firstOfMonthStr,
+          endDate: todayStr,
+          periodLabel: 'This Month',
+          fullDisplayDate: `${formatFullDate(firstOfMonthStr)} – ${formatFullDate(todayStr)}`,
+        };
+      }
+
+      case 'CUSTOM':
+      default: {
+        const s = customStartDate || todayStr;
+        const e = customEndDate || s;
+        const start = s <= e ? s : e;
+        const end = s <= e ? e : s;
+        return {
+          startDate: start,
+          endDate: end,
+          periodLabel: start === end ? 'Custom Date' : 'Custom Range',
+          fullDisplayDate: start === end ? formatFullDate(start) : `${formatFullDate(start)} – ${formatFullDate(end)}`,
+        };
+      }
+    }
+  }, [selectedPeriod, customStartDate, customEndDate]);
+
+  // Daily / Period Account Totals: Money In, Money Out, Net Balance
+  const { periodCredit, periodDebit, periodNet, countInflow, countOutflow } = useMemo(() => {
     let credit = 0;
     let debit = 0;
-    let count = 0;
+    let inCount = 0;
+    let outCount = 0;
 
     for (const t of activeTxns) {
-      if (selectedPeriod !== 'ALL' && (t.date < startDate || t.date > endDate)) {
+      if (t.date < startDate || t.date > endDate) {
         continue;
       }
-      count++;
       if (t.type === 'IN') {
         credit += t.amount;
+        inCount++;
       } else if (t.type === 'OUT') {
         debit += t.amount;
+        outCount++;
       }
     }
 
@@ -178,9 +178,10 @@ export const HomeScreen: React.FC = () => {
       periodCredit: credit,
       periodDebit: debit,
       periodNet: credit - debit,
-      countInPeriod: count,
+      countInflow: inCount,
+      countOutflow: outCount,
     };
-  }, [activeTxns, startDate, endDate, selectedPeriod]);
+  }, [activeTxns, startDate, endDate]);
 
   // Sorted all transactions (newest first)
   const sortedTransactions = [...activeTxns].sort((a, b) => {
@@ -189,13 +190,11 @@ export const HomeScreen: React.FC = () => {
     return (b.time || '').localeCompare(a.time || '');
   });
 
-  // Filtered transactions based on timeframe, search, and type pill
+  // Filtered transactions for the selected date & search
   const filteredTransactions = sortedTransactions.filter((txn) => {
-    // 1. Timeframe filter
-    if (selectedPeriod !== 'ALL') {
-      if (txn.date < startDate || txn.date > endDate) {
-        return false;
-      }
+    // 1. Date filter (strictly match selected date / date range)
+    if (txn.date < startDate || txn.date > endDate) {
+      return false;
     }
 
     const inv = txn.invoiceId ? invoiceMap.get(txn.invoiceId) : undefined;
@@ -233,279 +232,327 @@ export const HomeScreen: React.FC = () => {
   });
 
   return (
-    <div className="space-y-4 pb-28 pt-2">
-      {/* 1. LOW STOCK ALERT STRIP (Amber Banner) */}
+    <div className="space-y-3.5 pb-28 pt-2">
+      {/* LOW STOCK ALERT (Amber Banner if any items below min) */}
       {lowStockItems.length > 0 && (
         <div
           onClick={() => setActiveTab('stock')}
-          className="bg-white border-2 border-amber-500 rounded-2xl p-3 flex items-center justify-between cursor-pointer hover:bg-amber-50/50 transition-all shadow-xs"
+          className="bg-white dark:bg-slate-900 border-2 border-amber-500 rounded-2xl p-3 flex items-center justify-between cursor-pointer hover:bg-amber-50/40 dark:hover:bg-amber-950/20 transition-all shadow-xs"
         >
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-white border border-amber-400 text-amber-600 flex items-center justify-center flex-shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 border border-amber-400 text-amber-600 dark:text-amber-400 flex items-center justify-center flex-shrink-0">
               <AlertTriangle size={18} />
             </div>
             <div>
-              <span className="text-sm font-bold text-slate-900 block leading-tight">
+              <span className="text-sm font-bold text-slate-900 dark:text-slate-100 block leading-tight">
                 {lowStockItems.length} {t.itemsBelowMin}
               </span>
-              <span className="text-xs text-amber-800">
+              <span className="text-xs text-amber-800 dark:text-amber-300">
                 {lowStockItems.map((i) => i.name).slice(0, 2).join(', ')}
                 {lowStockItems.length > 2 ? ` +${lowStockItems.length - 2} more` : ''}
               </span>
             </div>
           </div>
-          <ArrowRight size={16} className="text-amber-800 flex-shrink-0" />
+          <ArrowRight size={16} className="text-amber-800 dark:text-amber-300 flex-shrink-0" />
         </div>
       )}
 
-      {/* 2. REORGANIZED COMPACT SUMMARY ROW (Clean White Cards with Colored Borders Only) */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
-        {/* Total Balance Card (Blue border) */}
-        <div className="p-3.5 rounded-2xl bg-white border-2 border-blue-500 text-slate-900 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-blue-600 mb-0.5">
-            <span className="text-xs font-bold uppercase tracking-wider">{t.totalBalance}</span>
-            <Wallet size={16} />
-          </div>
-          <div className="text-lg sm:text-xl font-bold tracking-tight tabular-nums text-slate-900">
-            {formatINR(total)}
-          </div>
-          <span className="text-[11px] text-slate-500 mt-0.5 block truncate">Cash + Bank accounts</span>
-        </div>
-
-        {/* Cash in Hand Card (Neutral/Blue border) */}
-        <div
-          onClick={() => {
-            const cash = accounts.find((a) => a.type === 'CASH');
-            if (cash) openAccountLedger(cash.id);
-          }}
-          className="p-3.5 rounded-2xl bg-white border border-slate-300 hover:border-blue-400 shadow-xs transition-all cursor-pointer group flex flex-col justify-between"
-        >
-          <div className="flex items-center justify-between text-slate-600 mb-0.5">
-            <span className="text-xs font-bold uppercase tracking-wider">{t.cashInHand}</span>
-            <Coins size={16} className="text-emerald-600" />
-          </div>
-          <div className="text-lg sm:text-xl font-bold text-slate-900 tabular-nums">
-            {formatINR(cashTotal)}
-          </div>
-          <span className="text-[11px] text-slate-500 mt-0.5 block truncate">Physical shop cash</span>
-        </div>
-
-        {/* Bank Balance Card (Neutral/Blue border with Expandable List) */}
-        <div className="p-3.5 rounded-2xl bg-white border border-slate-300 hover:border-blue-400 shadow-xs transition-all flex flex-col justify-between">
-          <div
-            onClick={() => setIsBankListExpanded(!isBankListExpanded)}
-            className="flex items-center justify-between cursor-pointer text-slate-600 mb-0.5"
-          >
-            <span className="text-xs font-bold uppercase tracking-wider">{t.bankBalance}</span>
-            <div className="flex items-center gap-1">
-              <Building2 size={16} className="text-blue-600" />
-              {isBankListExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+      {/* 1. TOP HEADER: DATE FILTER & SMALL "+ ADD" BUTTON */}
+      <div className="p-3.5 sm:p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        {/* Date Filter Pills */}
+        <div className="flex flex-col gap-2 min-w-0">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl border border-blue-300 dark:border-blue-700 text-blue-600 dark:text-blue-400 flex items-center justify-center flex-shrink-0 bg-white dark:bg-slate-800">
+              <Calendar size={16} />
             </div>
-          </div>
-
-          <div
-            onClick={() => setIsBankListExpanded(!isBankListExpanded)}
-            className="text-lg sm:text-xl font-bold text-slate-900 tabular-nums cursor-pointer"
-          >
-            {formatINR(bankTotal)}
-          </div>
-          <span className="text-[11px] text-slate-500 mt-0.5 block truncate">
-            {accounts.filter((a) => a.type === 'BANK').length} bank accounts
-          </span>
-
-          {/* Expandable Bank list */}
-          {isBankListExpanded && (
-            <div className="mt-2 pt-2 border-t border-slate-200 space-y-1.5 animate-in fade-in duration-150">
-              {accounts
-                .filter((a) => a.type === 'BANK')
-                .map((b) => (
-                  <div
-                    key={b.id}
-                    onClick={() => openAccountLedger(b.id)}
-                    className="flex items-center justify-between py-1 px-1.5 rounded-lg hover:bg-slate-50 cursor-pointer text-xs"
-                  >
-                    <span className="font-semibold text-slate-800 truncate">{b.nickname}</span>
-                    <span className="font-bold tabular-nums text-slate-900">
-                      {formatINR(accountBalances[b.id] ?? b.openingBalance)}
-                    </span>
-                  </div>
-                ))}
-
-              <button
-                type="button"
-                onClick={() => openReconcileModal()}
-                className="w-full mt-1 py-1 rounded-lg bg-white border border-blue-200 hover:bg-blue-50/50 text-[11px] font-bold text-blue-700 flex items-center justify-center gap-1"
-              >
-                <Scale size={12} /> Reconcile Passbook
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* To Receive Card (Green border only, white background) */}
-        <div
-          onClick={() => setActiveTab('parties')}
-          className="p-3.5 rounded-2xl bg-white border-2 border-emerald-500 shadow-xs hover:border-emerald-600 cursor-pointer transition-all flex flex-col justify-between"
-        >
-          <div className="flex items-center justify-between text-emerald-600 mb-0.5">
-            <span className="text-xs font-bold uppercase tracking-wider">{t.toReceive}</span>
-            <ArrowDownLeft size={16} strokeWidth={2.5} />
-          </div>
-          <div className="text-lg sm:text-xl font-bold text-slate-900 tabular-nums">
-            {formatINR(toReceive)}
-          </div>
-          <span className="text-[11px] text-emerald-700 mt-0.5 block truncate">Customers owe you</span>
-        </div>
-
-        {/* To Pay Card (Red border only, white background) */}
-        <div
-          onClick={() => setActiveTab('parties')}
-          className="p-3.5 rounded-2xl bg-white border-2 border-rose-500 shadow-xs hover:border-rose-600 cursor-pointer transition-all flex flex-col justify-between col-span-2 sm:col-span-1"
-        >
-          <div className="flex items-center justify-between text-rose-600 mb-0.5">
-            <span className="text-xs font-bold uppercase tracking-wider">{t.toPay}</span>
-            <ArrowUpRight size={16} strokeWidth={2.5} />
-          </div>
-          <div className="text-lg sm:text-xl font-bold text-slate-900 tabular-nums">
-            {formatINR(toPay)}
-          </div>
-          <span className="text-[11px] text-rose-700 mt-0.5 block truncate">You owe suppliers</span>
-        </div>
-      </div>
-
-      {/* 3. DATE & TIMEFRAME CASHFLOW TRACKER (Moved here in place of the removed Money In / Money Out boxes) */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3.5">
-        {/* Top: Active Date Display & Real-time Debit/Credit Tracker */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-          {/* Left: Active Date & Timeframe */}
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-white border-2 border-blue-500 text-blue-600 flex items-center justify-center flex-shrink-0 shadow-xs">
-              <Calendar size={20} />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
-                  {fullDisplayDate}
-                </span>
-                <span className="px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-[11px] font-bold">
-                  {periodLabel}
-                </span>
-              </div>
-              <span className="text-xs text-slate-500 block mt-0.5">
-                Live cashflow & ledger activity for selected timeframe
+            <div className="min-w-0">
+              <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100 leading-tight truncate">
+                {fullDisplayDate}
+              </h2>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 block truncate">
+                Day Account for: <strong className="text-blue-600 dark:text-blue-400">{periodLabel}</strong>
               </span>
             </div>
           </div>
 
-          {/* Right: Live Credit / Debit Totals + Details Button */}
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Credit (Money In) - Plain white with thin emerald border */}
-            <div
-              className="px-3 py-1.5 rounded-xl bg-white border-2 border-emerald-500 text-slate-900 flex items-center gap-2 shadow-xs"
-              title="Total Money In / Credit for this timeframe"
-            >
-              <div className="w-6 h-6 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                <ArrowDownLeft size={14} strokeWidth={2.5} />
-              </div>
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 block leading-none">
-                  Credit (In)
-                </span>
-                <span className="text-sm font-bold text-emerald-700 tabular-nums">
-                  +{formatINR(periodCredit)}
-                </span>
-              </div>
-            </div>
-
-            {/* Debit (Money Out) - Plain white with thin rose border */}
-            <div
-              className="px-3 py-1.5 rounded-xl bg-white border-2 border-rose-500 text-slate-900 flex items-center gap-2 shadow-xs"
-              title="Total Money Out / Debit for this timeframe"
-            >
-              <div className="w-6 h-6 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
-                <ArrowUpRight size={14} strokeWidth={2.5} />
-              </div>
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-rose-700 block leading-none">
-                  Debit (Out)
-                </span>
-                <span className="text-sm font-bold text-rose-600 tabular-nums">
-                  −{formatINR(periodDebit)}
-                </span>
-              </div>
-            </div>
-
-            {/* Breakdown Modal Trigger (Clock Icon) */}
-            <button
-              type="button"
-              onClick={() => openPeriodCashflow()}
-              className="px-2.5 py-2 rounded-xl bg-white border border-slate-300 hover:border-blue-400 hover:bg-slate-50 text-slate-700 hover:text-blue-700 text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs"
-              title="View detailed Party & Bank Breakdown for this timeframe"
-            >
-              <Clock size={15} className="text-amber-600" />
-              <span className="hidden sm:inline">Details</span>
-            </button>
+          {/* Timeframe Tabs */}
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            {[
+              { id: 'TODAY', label: 'Today' },
+              { id: 'YESTERDAY', label: 'Yesterday' },
+              { id: 'THIS_WEEK', label: 'This Week' },
+              { id: 'THIS_MONTH', label: 'This Month' },
+              { id: 'CUSTOM', label: 'Custom Date / Range 📅' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setSelectedPeriod(tab.id as HomeTimePeriod)}
+                className={`px-3 py-1.5 rounded-xl transition-all active:scale-95 ${
+                  selectedPeriod === tab.id
+                    ? 'bg-white dark:bg-slate-800 border-2 border-blue-600 dark:border-blue-400 text-blue-700 dark:text-blue-300 font-bold shadow-xs'
+                    : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300 font-medium'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
+
+          {/* Custom Date Pickers */}
+          {selectedPeriod === 'CUSTOM' && (
+            <div className="flex flex-wrap items-center gap-2 pt-1 animate-in fade-in duration-150">
+              <div className="flex items-center gap-1.5 text-xs">
+                <span className="text-slate-500 dark:text-slate-400 font-medium">From:</span>
+                <input
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-xs text-slate-900 dark:text-slate-100 font-bold focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+              <div className="flex items-center gap-1.5 text-xs">
+                <span className="text-slate-500 dark:text-slate-400 font-medium">To:</span>
+                <input
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className="px-2.5 py-1 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-xs text-slate-900 dark:text-slate-100 font-bold focus:outline-none focus:ring-1 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Bottom Row: Timeframe Pills Selector */}
-        <div className="flex flex-wrap items-center gap-1.5 text-xs">
-          {[
-            { id: 'TODAY', label: 'Today' },
-            { id: 'LAST_DAY', label: 'Last Day (Yesterday)' },
-            { id: 'LAST_WEEK', label: 'Last Week' },
-            { id: 'LAST_MONTH', label: 'Last Month' },
-            { id: 'LAST_YEAR', label: 'Last Year' },
-            { id: 'CUSTOM', label: 'Date-wise 📅' },
-            { id: 'ALL', label: 'All Time' },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setSelectedPeriod(tab.id as HomeTimePeriod)}
-              className={`px-3 py-1.5 rounded-xl transition-all active:scale-95 ${
-                selectedPeriod === tab.id
-                  ? 'bg-white border-2 border-blue-600 text-blue-700 font-bold shadow-xs'
-                  : 'bg-white border border-slate-200 text-slate-600 hover:border-slate-300 font-medium'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+        {/* Small Simple "+ Add" Button with Quick Dropdown */}
+        <div className="relative self-start sm:self-center flex-shrink-0">
+          <button
+            type="button"
+            onClick={() => setShowAddMenu(!showAddMenu)}
+            className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all active:scale-95"
+            title="Record Money In / Out or Add Bill"
+          >
+            <Plus size={16} strokeWidth={2.5} />
+            <span>+ Add</span>
+            <ChevronDown size={14} />
+          </button>
 
-          {/* Inline Date Picker when Date-wise (CUSTOM) is selected */}
-          {selectedPeriod === 'CUSTOM' && (
-            <div className="flex items-center gap-1.5 pl-1 animate-in fade-in duration-150">
-              <input
-                type="date"
-                value={customDate}
-                onChange={(e) => {
-                  if (e.target.value) {
-                    setCustomDate(e.target.value);
-                  }
+          {showAddMenu && (
+            <div className="absolute right-0 mt-1.5 w-52 bg-white dark:bg-slate-800 rounded-2xl shadow-elevated border border-slate-200 dark:border-slate-700 py-1.5 z-40 animate-in fade-in zoom-in-95">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddMenu(false);
+                  openInvoiceScreen('SALE');
                 }}
-                className="px-2.5 py-1 rounded-xl bg-white border-2 border-blue-500 text-xs text-slate-900 font-bold focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
+                className="w-full text-left px-3.5 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 flex items-center gap-2"
+              >
+                <ArrowDownLeft size={14} strokeWidth={2.5} />
+                <span>+ Add Sale (Bill)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddMenu(false);
+                  openPaymentIn();
+                }}
+                className="w-full text-left px-3.5 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 flex items-center gap-2"
+              >
+                <Coins size={14} />
+                <span>+ Payment In (Receive)</span>
+              </button>
+              <div className="my-1 border-t border-slate-100 dark:border-slate-700"></div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddMenu(false);
+                  openInvoiceScreen('PURCHASE');
+                }}
+                className="w-full text-left px-3.5 py-2 text-xs font-bold text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-2"
+              >
+                <ArrowUpRight size={14} strokeWidth={2.5} />
+                <span>+ Add Purchase (Bill)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddMenu(false);
+                  openPaymentOut();
+                }}
+                className="w-full text-left px-3.5 py-2 text-xs font-bold text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-2"
+              >
+                <Coins size={14} />
+                <span>+ Payment Out (Pay)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddMenu(false);
+                  openExpenseModal();
+                }}
+                className="w-full text-left px-3.5 py-2 text-xs font-bold text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 flex items-center gap-2"
+              >
+                <CreditCard size={14} />
+                <span>+ Business Expense</span>
+              </button>
             </div>
           )}
         </div>
       </div>
 
-      {/* 4. MAIN FOCUS: HOMEPAGE TRANSACTION LIST (Full Width & Spacious) */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4">
-        {/* Top Header with Title, Search, and Count */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+      {/* 2. SUMMARY BOXES: RED, BLUE, GREEN 2PX OUTLINE ONLY (NO COLORED FILL) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {/* GREEN OUTLINE: Money In */}
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border-2 border-emerald-600 dark:border-emerald-500 shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-emerald-600 dark:text-emerald-400 mb-1">
+            <span className="text-xs font-bold uppercase tracking-wider">Total Money In</span>
+            <div className="w-7 h-7 rounded-lg border border-emerald-300 dark:border-emerald-700 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+              <ArrowDownLeft size={16} strokeWidth={2.5} />
+            </div>
+          </div>
+          <div className="text-xl sm:text-2xl font-bold tracking-tight tabular-nums text-emerald-600 dark:text-emerald-400">
+            +{formatINR(periodCredit)}
+          </div>
+          <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 block truncate">
+            Sales & Collections ({countInflow} entries)
+          </span>
+        </div>
+
+        {/* RED OUTLINE: Money Out */}
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border-2 border-rose-600 dark:border-rose-500 shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-rose-600 dark:text-rose-400 mb-1">
+            <span className="text-xs font-bold uppercase tracking-wider">Total Money Out</span>
+            <div className="w-7 h-7 rounded-lg border border-rose-300 dark:border-rose-700 flex items-center justify-center text-rose-600 dark:text-rose-400">
+              <ArrowUpRight size={16} strokeWidth={2.5} />
+            </div>
+          </div>
+          <div className="text-xl sm:text-2xl font-bold tracking-tight tabular-nums text-rose-600 dark:text-rose-400">
+            −{formatINR(periodDebit)}
+          </div>
+          <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 block truncate">
+            Purchases & Expenses ({countOutflow} entries)
+          </span>
+        </div>
+
+        {/* BLUE OUTLINE: Balance */}
+        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border-2 border-blue-600 dark:border-blue-500 shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-blue-600 dark:text-blue-400 mb-1">
+            <span className="text-xs font-bold uppercase tracking-wider">Net Balance</span>
+            <div className="w-7 h-7 rounded-lg border border-blue-300 dark:border-blue-700 flex items-center justify-center text-blue-600 dark:text-blue-400">
+              <Wallet size={16} />
+            </div>
+          </div>
+          <div className={`text-xl sm:text-2xl font-bold tracking-tight tabular-nums ${
+            periodNet >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-rose-600 dark:text-rose-400'
+          }`}>
+            {formatINR(periodNet)}
+          </div>
+          <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 block truncate">
+            {periodLabel} Account (Money In − Out)
+          </span>
+        </div>
+      </div>
+
+      {/* COLLAPSIBLE PHYSICAL CASH & BANK ACCOUNTS STRIP */}
+      <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-2.5 shadow-xs">
+        <button
+          type="button"
+          onClick={() => setShowAccountDetails(!showAccountDetails)}
+          className="w-full flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300 hover:text-blue-600 px-1 py-0.5"
+        >
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-white border border-blue-400 text-blue-600 flex items-center justify-center font-bold">
+            <Building2 size={15} className="text-blue-600 dark:text-blue-400" />
+            <span>Bank & Cash Ledgers (Total Balance: {formatINR(total)})</span>
+          </div>
+          <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
+            <span>{showAccountDetails ? 'Hide' : 'Show Accounts'}</span>
+            {showAccountDetails ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </div>
+        </button>
+
+        {showAccountDetails && (
+          <div className="mt-2.5 pt-2.5 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs animate-in fade-in duration-150">
+            {/* Cash in Hand */}
+            <div
+              onClick={() => {
+                const cash = accounts.find((a) => a.type === 'CASH');
+                if (cash) openAccountLedger(cash.id);
+              }}
+              className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-blue-400 cursor-pointer bg-slate-50/50 dark:bg-slate-800/50"
+            >
+              <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400 block">Cash in Hand</span>
+              <span className="text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">{formatINR(cashTotal)}</span>
+            </div>
+
+            {/* Bank Total */}
+            <div
+              onClick={() => setIsBankListExpanded(!isBankListExpanded)}
+              className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-blue-400 cursor-pointer bg-slate-50/50 dark:bg-slate-800/50"
+            >
+              <span className="text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400 block">Bank Balance</span>
+              <span className="text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">{formatINR(bankTotal)}</span>
+            </div>
+
+            {/* To Receive */}
+            <div
+              onClick={() => setActiveTab('parties')}
+              className="p-2.5 rounded-xl border border-emerald-300 dark:border-emerald-700 hover:border-emerald-500 cursor-pointer bg-slate-50/50 dark:bg-slate-800/50"
+            >
+              <span className="text-[10px] font-bold uppercase text-emerald-700 dark:text-emerald-400 block">To Receive</span>
+              <span className="text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">{formatINR(toReceive)}</span>
+            </div>
+
+            {/* To Pay */}
+            <div
+              onClick={() => setActiveTab('parties')}
+              className="p-2.5 rounded-xl border border-rose-300 dark:border-rose-700 hover:border-rose-500 cursor-pointer bg-slate-50/50 dark:bg-slate-800/50"
+            >
+              <span className="text-[10px] font-bold uppercase text-rose-700 dark:text-rose-400 block">To Pay</span>
+              <span className="text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">{formatINR(toPay)}</span>
+            </div>
+
+            {/* Expandable Bank list */}
+            {isBankListExpanded && (
+              <div className="col-span-2 sm:col-span-4 mt-1.5 p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 space-y-1.5">
+                {accounts.filter((a) => a.type === 'BANK').map((b) => (
+                  <div
+                    key={b.id}
+                    onClick={() => openAccountLedger(b.id)}
+                    className="flex items-center justify-between py-1 px-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer text-xs"
+                  >
+                    <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">{b.nickname}</span>
+                    <span className="font-bold tabular-nums text-slate-900 dark:text-slate-100">
+                      {formatINR(accountBalances[b.id] ?? b.openingBalance)}
+                    </span>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => openReconcileModal()}
+                  className="w-full mt-1 py-1 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-[11px] font-bold text-blue-700 dark:text-blue-300 flex items-center justify-center gap-1"
+                >
+                  <Scale size={12} /> Reconcile Passbook
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* 3. LIST OF TRANSACTIONS FOR SELECTED DATE (Main Focus) */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+        {/* Header with Title & Search */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 border border-blue-400 dark:border-blue-600 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold">
               <History size={16} />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
-                {t.recentTransactions}
+              <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 leading-tight">
+                Transactions ({periodLabel})
               </h2>
-              <p className="text-xs text-slate-500">
-                Showing {filteredTransactions.length} transaction{filteredTransactions.length === 1 ? '' : 's'} for {periodLabel}
-                {selectedPeriod !== 'ALL' && ` (${fullDisplayDate})`}
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Showing {filteredTransactions.length} of {activeTxns.length} entries for {fullDisplayDate}
               </p>
             </div>
           </div>
@@ -515,10 +562,10 @@ export const HomeScreen: React.FC = () => {
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              placeholder="Search by party, invoice, amount..."
+              placeholder="Search by party, bill, amount..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-white border border-slate-300 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
+              className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-blue-500"
             />
           </div>
         </div>
@@ -539,8 +586,8 @@ export const HomeScreen: React.FC = () => {
               onClick={() => setTxnFilter(pill.id as any)}
               className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-all active:scale-95 ${
                 txnFilter === pill.id
-                  ? 'bg-white border-2 border-blue-600 text-blue-700 shadow-xs'
-                  : 'bg-white border border-slate-200 text-slate-600 hover:border-slate-300'
+                  ? 'bg-white dark:bg-slate-800 border-2 border-blue-600 dark:border-blue-400 text-blue-700 dark:text-blue-300 shadow-xs'
+                  : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300'
               }`}
             >
               {pill.label}
@@ -552,24 +599,18 @@ export const HomeScreen: React.FC = () => {
         {filteredTransactions.length === 0 ? (
           <EmptyState
             icon={History}
-            title={
-              searchQuery
-                ? 'No matching transactions'
-                : `No transactions for ${periodLabel}`
-            }
+            title={searchQuery ? 'No matching transactions' : `No transactions for ${periodLabel}`}
             description={
               searchQuery
                 ? 'Try clearing your search query or filter.'
-                : selectedPeriod === 'TODAY'
-                ? 'No cash or bank entries yet today. Tap + Money In to record an entry.'
-                : `No cash or bank entries recorded for ${fullDisplayDate}. Try selecting another date or "All Time".`
+                : `No cash or bank entries found for ${fullDisplayDate}. Use the "+ Add" button above to record an entry.`
             }
-            actionLabel={t.moneyIn}
+            actionLabel="+ Add Entry"
             actionVariant="moneyIn"
-            onAction={() => openMoneyIn()}
+            onAction={() => setShowAddMenu(true)}
           />
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-slate-100 dark:divide-slate-800">
             {filteredTransactions.map((txn) => {
               const inv = txn.invoiceId ? invoiceMap.get(txn.invoiceId) : undefined;
               const party = txn.partyId ? partyMap.get(txn.partyId) : undefined;
@@ -581,35 +622,35 @@ export const HomeScreen: React.FC = () => {
               // Derive transaction type label & styling (White background with thin colored borders)
               let typeLabel = txn.category;
               let isPositive = txn.type === 'IN';
-              let badgeBorderClass = 'border-slate-300 text-slate-700';
+              let badgeBorderClass = 'border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300';
 
               if (inv) {
                 if (inv.type === 'SALE') {
                   typeLabel = `Sale #${inv.number}`;
                   isPositive = true;
-                  badgeBorderClass = 'border-emerald-500 text-emerald-700';
+                  badgeBorderClass = 'border-emerald-500 text-emerald-700 dark:text-emerald-400';
                 } else if (inv.type === 'PURCHASE') {
                   typeLabel = `Purchase #${inv.number}`;
                   isPositive = false;
-                  badgeBorderClass = 'border-rose-500 text-rose-700';
+                  badgeBorderClass = 'border-rose-500 text-rose-700 dark:text-rose-400';
                 } else if (inv.type === 'SALE_RETURN') {
                   typeLabel = `Sale Return #${inv.number}`;
                   isPositive = false;
-                  badgeBorderClass = 'border-amber-500 text-amber-700';
+                  badgeBorderClass = 'border-amber-500 text-amber-700 dark:text-amber-400';
                 } else if (inv.type === 'PURCHASE_RETURN') {
                   typeLabel = `Purchase Return #${inv.number}`;
                   isPositive = true;
-                  badgeBorderClass = 'border-emerald-500 text-emerald-700';
+                  badgeBorderClass = 'border-emerald-500 text-emerald-700 dark:text-emerald-400';
                 }
               } else if (txn.type === 'IN') {
                 typeLabel = 'Payment In';
-                badgeBorderClass = 'border-emerald-500 text-emerald-700';
+                badgeBorderClass = 'border-emerald-500 text-emerald-700 dark:text-emerald-400';
               } else if (txn.type === 'OUT') {
                 typeLabel = txn.partyId ? 'Payment Out' : 'Business Expense';
-                badgeBorderClass = 'border-rose-500 text-rose-700';
+                badgeBorderClass = 'border-rose-500 text-rose-700 dark:text-rose-400';
               } else {
                 typeLabel = 'Transfer';
-                badgeBorderClass = 'border-blue-500 text-blue-700';
+                badgeBorderClass = 'border-blue-500 text-blue-700 dark:text-blue-400';
               }
 
               // Status label if applicable
@@ -619,18 +660,18 @@ export const HomeScreen: React.FC = () => {
                 <div
                   key={txn.id}
                   onClick={() => openTransactionDetail(txn.id, txn.invoiceId)}
-                  className="py-3 px-2 sm:px-3 flex items-center justify-between group hover:bg-slate-50/80 rounded-xl transition-all cursor-pointer"
-                  title="Tap to open complete details immediately"
+                  className="py-3 px-2 sm:px-3 flex items-center justify-between group hover:bg-slate-50/80 dark:hover:bg-slate-800/60 rounded-xl transition-all cursor-pointer"
+                  title="Tap to open complete bill details & share PDF"
                 >
                   {/* Left: Icon & Descriptive Info (Labels larger than amount) */}
                   <div className="flex items-center gap-3 min-w-0 pr-2">
                     <div
-                      className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-white border ${
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-white dark:bg-slate-800 border ${
                         isPositive
-                          ? 'border-emerald-400 text-emerald-600'
+                          ? 'border-emerald-400 text-emerald-600 dark:text-emerald-400'
                           : txn.type === 'OUT'
-                          ? 'border-rose-400 text-rose-600'
-                          : 'border-blue-400 text-blue-600'
+                          ? 'border-rose-400 text-rose-600 dark:text-rose-400'
+                          : 'border-blue-400 text-blue-600 dark:text-blue-400'
                       }`}
                     >
                       {isPositive ? (
@@ -644,25 +685,25 @@ export const HomeScreen: React.FC = () => {
 
                     <div className="flex flex-col min-w-0">
                       {/* Party Name / Description: Slightly larger than amount */}
-                      <span className="text-base sm:text-lg font-bold text-slate-900 leading-snug truncate group-hover:text-blue-600 transition-colors">
+                      <span className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 leading-snug truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
                         {partyDisplayName}
                       </span>
 
                       {/* Metadata Row: Date, Type Badge (Border only), Account */}
-                      <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500 mt-0.5">
-                        <span className="font-medium text-slate-600">{formatDate(txn.date)}</span>
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        <span className="font-medium text-slate-600 dark:text-slate-300">{formatDate(txn.date)}</span>
                         <span>•</span>
-                        <span className={`px-2 py-0.2 rounded-md bg-white border font-bold text-[11px] ${badgeBorderClass}`}>
+                        <span className={`px-2 py-0.2 rounded-md bg-white dark:bg-slate-800 border font-bold text-[11px] ${badgeBorderClass}`}>
                           {typeLabel}
                         </span>
                         {inv && (
                           <span
-                            className={`px-1.5 py-0.2 rounded-md bg-white border text-[10px] font-bold ${
+                            className={`px-1.5 py-0.2 rounded-md bg-white dark:bg-slate-800 border text-[10px] font-bold ${
                               inv.status === 'PAID'
-                                ? 'border-emerald-400 text-emerald-700'
+                                ? 'border-emerald-400 text-emerald-700 dark:text-emerald-400'
                                 : inv.status === 'PARTIAL'
-                                ? 'border-amber-400 text-amber-700'
-                                : 'border-rose-400 text-rose-700'
+                                ? 'border-amber-400 text-amber-700 dark:text-amber-400'
+                                : 'border-rose-400 text-rose-700 dark:text-rose-400'
                             }`}
                           >
                             {statusLabel}
@@ -681,7 +722,7 @@ export const HomeScreen: React.FC = () => {
                   <div className="flex flex-col items-end flex-shrink-0">
                     <span
                       className={`text-sm sm:text-base font-bold tabular-nums tracking-tight ${
-                        isPositive ? 'text-emerald-700' : 'text-rose-600'
+                        isPositive ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
                       }`}
                     >
                       {isPositive ? '+' : '−'}

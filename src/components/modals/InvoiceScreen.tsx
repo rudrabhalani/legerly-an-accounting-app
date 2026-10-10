@@ -18,7 +18,7 @@ import {
 } from '../../utils/formatters';
 import { INDIAN_STATES, isInterStateSupply } from '../../data/indianStates';
 import { calculateLineGST, calculateInvoiceTotals } from '../../utils/gstCalc';
-import { generateInvoicePdf } from '../../services/pdfService';
+import { generateInvoicePdf, shareBillPdfFile } from '../../services/pdfService';
 import { pickMobileContacts } from '../../utils/contactPicker';
 import {
   X,
@@ -554,27 +554,12 @@ export const InvoiceScreen: React.FC = () => {
 
     if (andShare) {
       const defaultBankAcc = accounts.find((a) => a.id === invData.accountId && a.type === 'BANK') || accounts.find((a) => a.type === 'BANK');
-      const doc = generateInvoicePdf(invoice, business, selectedParty, defaultBankAcc);
-      const fileName = `${invoice.number.replace(/[\/\\]/g, '_')}.pdf`;
-      const pdfBlob = doc.output('blob');
-      const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-
-      // Direct Send PDF file (no links sent!)
-      if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-        try {
-          await navigator.share({
-            files: [pdfFile],
-            title: `${invoice.number}.pdf`,
-          });
-        } catch (err: any) {
-          if (err?.name !== 'AbortError') {
-            doc.save(fileName);
-          }
-        }
-      } else {
-        doc.save(fileName);
-        alert(`Bill PDF (${fileName}) downloaded directly. You can now send or attach the PDF directly without any web link.`);
-      }
+      await shareBillPdfFile({
+        invoice,
+        business,
+        party: selectedParty,
+        account: defaultBankAcc,
+      });
     }
 
     if (andNew) {
