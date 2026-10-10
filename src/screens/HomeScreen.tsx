@@ -30,6 +30,15 @@ import {
   Calendar,
   Plus,
   CreditCard,
+  BookOpen,
+  TrendingUp,
+  Printer,
+  Users,
+  Receipt,
+  ShoppingCart,
+  Boxes,
+  Percent,
+  Database,
 } from 'lucide-react';
 
 export type HomeTimePeriod =
@@ -54,6 +63,11 @@ export const HomeScreen: React.FC = () => {
   const openAccountLedger = useLedgerlyStore((state) => state.openAccountLedger);
   const openReconcileModal = useLedgerlyStore((state) => state.openReconcileModal);
   const openTransactionDetail = useLedgerlyStore((state) => state.openTransactionDetail);
+  const openDayBook = useLedgerlyStore((state) => state.openDayBook);
+  const openBalanceSheet = useLedgerlyStore((state) => state.openBalanceSheet);
+  const openBillWisePnl = useLedgerlyStore((state) => state.openBillWisePnl);
+  const openPrintSettings = useLedgerlyStore((state) => state.openPrintSettings);
+  const openBackupModal = useLedgerlyStore((state) => state.openBackupModal);
   const setActiveTab = useLedgerlyStore((state) => state.setActiveTab);
 
   const t = getTranslation(business.language);
@@ -81,6 +95,18 @@ export const HomeScreen: React.FC = () => {
 
   // Active non-deleted transactions
   const activeTxns = transactions.filter((txn) => !txn.isDeleted);
+
+  const todayStr = getTodayDateString();
+  const { todayIn, todayOut } = useMemo(() => {
+    let tIn = 0;
+    let tOut = 0;
+    for (const txn of transactions) {
+      if (txn.isDeleted || txn.date !== todayStr) continue;
+      if (txn.type === 'IN') tIn += txn.amount;
+      else if (txn.type === 'OUT') tOut += txn.amount;
+    }
+    return { todayIn: tIn, todayOut: tOut };
+  }, [transactions, todayStr]);
 
   const partyMap = new Map(parties.map((p) => [p.id, p]));
   const accountMap = new Map(accounts.map((a) => [a.id, a]));
@@ -233,6 +259,22 @@ export const HomeScreen: React.FC = () => {
 
   return (
     <div className="space-y-3.5 pb-28 pt-2">
+      {/* 0. SLIM SINGLE-LINE SUMMARY STRIP: "Today: In ₹X | Out ₹Y" (OPENS DAY BOOK ON TAP) */}
+      <div
+        onClick={openDayBook}
+        className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs flex items-center justify-between cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-all text-xs"
+      >
+        <div className="flex items-center gap-2">
+          <Calendar size={15} className="text-blue-600 dark:text-blue-400" />
+          <span className="font-bold text-slate-800 dark:text-slate-200">
+            Today: In <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">+{formatINR(todayIn)}</span> | Out <span className="text-rose-600 dark:text-rose-400 font-extrabold">−{formatINR(todayOut)}</span>
+          </span>
+        </div>
+        <div className="flex items-center gap-1 text-[11px] font-bold text-blue-600 dark:text-blue-400">
+          <span>Day Book</span>
+          <ArrowRight size={13} />
+        </div>
+      </div>
       {/* LOW STOCK ALERT (Amber Banner if any items below min) */}
       {lowStockItems.length > 0 && (
         <div
@@ -400,56 +442,140 @@ export const HomeScreen: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. SUMMARY BOXES: RED, BLUE, GREEN 2PX OUTLINE ONLY (NO COLORED FILL) */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {/* GREEN OUTLINE: Money In */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border-2 border-emerald-600 dark:border-emerald-500 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-emerald-600 dark:text-emerald-400 mb-1">
-            <span className="text-xs font-bold uppercase tracking-wider">Total Money In</span>
-            <div className="w-7 h-7 rounded-lg border border-emerald-300 dark:border-emerald-700 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-              <ArrowDownLeft size={16} strokeWidth={2.5} />
-            </div>
-          </div>
-          <div className="text-xl sm:text-2xl font-bold tracking-tight tabular-nums text-emerald-600 dark:text-emerald-400">
-            +{formatINR(periodCredit)}
-          </div>
-          <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 block truncate">
-            Sales & Collections ({countInflow} entries)
+      {/* 2. ACCOUNTING OPTIONS GRID: 12 CLEAN RESPONSIVE TILES (2 COLS PHONE, 3-4 COLS TABLET/PC) */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between px-1">
+          <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+            Accounting Modules & Registers
           </span>
+          <span className="text-[11px] text-slate-500 font-semibold">12 Modules</span>
         </div>
 
-        {/* RED OUTLINE: Money Out */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border-2 border-rose-600 dark:border-rose-500 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-rose-600 dark:text-rose-400 mb-1">
-            <span className="text-xs font-bold uppercase tracking-wider">Total Money Out</span>
-            <div className="w-7 h-7 rounded-lg border border-rose-300 dark:border-rose-700 flex items-center justify-center text-rose-600 dark:text-rose-400">
-              <ArrowUpRight size={16} strokeWidth={2.5} />
-            </div>
-          </div>
-          <div className="text-xl sm:text-2xl font-bold tracking-tight tabular-nums text-rose-600 dark:text-rose-400">
-            −{formatINR(periodDebit)}
-          </div>
-          <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 block truncate">
-            Purchases & Expenses ({countOutflow} entries)
-          </span>
-        </div>
-
-        {/* BLUE OUTLINE: Balance */}
-        <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border-2 border-blue-600 dark:border-blue-500 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between text-blue-600 dark:text-blue-400 mb-1">
-            <span className="text-xs font-bold uppercase tracking-wider">Net Balance</span>
-            <div className="w-7 h-7 rounded-lg border border-blue-300 dark:border-blue-700 flex items-center justify-center text-blue-600 dark:text-blue-400">
-              <Wallet size={16} />
-            </div>
-          </div>
-          <div className={`text-xl sm:text-2xl font-bold tracking-tight tabular-nums ${
-            periodNet >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-rose-600 dark:text-rose-400'
-          }`}>
-            {formatINR(periodNet)}
-          </div>
-          <span className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 block truncate">
-            {periodLabel} Account (Money In − Out)
-          </span>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+          {[
+            {
+              id: 'balance-sheet',
+              title: 'Balance Sheet',
+              subtitle: 'Assets vs Liabilities',
+              icon: Scale,
+              color: 'text-indigo-600 bg-indigo-50 border-indigo-200',
+              action: openBalanceSheet,
+            },
+            {
+              id: 'day-book',
+              title: 'Day Book',
+              subtitle: 'Daily Cash / Bank Log',
+              icon: BookOpen,
+              color: 'text-blue-600 bg-blue-50 border-blue-200',
+              action: openDayBook,
+            },
+            {
+              id: 'bill-wise-pnl',
+              title: 'Bill-wise P&L',
+              subtitle: 'Margins & Profitability',
+              icon: TrendingUp,
+              color: 'text-emerald-600 bg-emerald-50 border-emerald-200',
+              action: openBillWisePnl,
+            },
+            {
+              id: 'print-settings',
+              title: 'Print Settings',
+              subtitle: 'A4 / POS Thermal & Preview',
+              icon: Printer,
+              color: 'text-amber-600 bg-amber-50 border-amber-200',
+              action: openPrintSettings,
+            },
+            {
+              id: 'party-ledger',
+              title: 'Party Ledger',
+              subtitle: 'Khata & Running Balance',
+              icon: Users,
+              color: 'text-purple-600 bg-purple-50 border-purple-200',
+              action: () => setActiveTab('parties'),
+            },
+            {
+              id: 'sales-register',
+              title: 'Sales Register',
+              subtitle: 'Invoices & Returns',
+              icon: Receipt,
+              color: 'text-emerald-600 bg-emerald-50 border-emerald-200',
+              action: () => setActiveTab('reports'),
+            },
+            {
+              id: 'purchase-register',
+              title: 'Purchase Register',
+              subtitle: 'Bills & Inward Stock',
+              icon: ShoppingCart,
+              color: 'text-rose-600 bg-rose-50 border-rose-200',
+              action: () => setActiveTab('reports'),
+            },
+            {
+              id: 'expenses',
+              title: 'Expenses',
+              subtitle: 'Tea, Rent, Fuel & Petty',
+              icon: CreditCard,
+              color: 'text-rose-600 bg-rose-50 border-rose-200',
+              action: openExpenseModal,
+            },
+            {
+              id: 'cash-book',
+              title: 'Cash Book',
+              subtitle: 'Cash in Hand Ledger',
+              icon: Wallet,
+              color: 'text-blue-600 bg-blue-50 border-blue-200',
+              action: () => {
+                const cashAcc = accounts.find((a) => a.type === 'CASH');
+                if (cashAcc) openAccountLedger(cashAcc.id);
+                else openAccountLedger(accounts[0]?.id || '');
+              },
+            },
+            {
+              id: 'stock-report',
+              title: 'Stock / Inventory',
+              subtitle: 'Items & Low Stock Alerts',
+              icon: Boxes,
+              color: 'text-amber-600 bg-amber-50 border-amber-200',
+              action: () => setActiveTab('stock'),
+            },
+            {
+              id: 'gst-report',
+              title: 'GST Report',
+              subtitle: 'GSTR-1 & Summary',
+              icon: Percent,
+              color: 'text-teal-600 bg-teal-50 border-teal-200',
+              action: () => setActiveTab('reports'),
+            },
+            {
+              id: 'backup-restore',
+              title: 'Backup & Restore',
+              subtitle: 'Offline JSON Storage',
+              icon: Database,
+              color: 'text-slate-600 bg-slate-100 border-slate-300',
+              action: openBackupModal,
+            },
+          ].map((tile) => {
+            const Icon = tile.icon;
+            return (
+              <button
+                key={tile.id}
+                type="button"
+                onClick={tile.action}
+                className="p-3 sm:p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-xs transition-all active:scale-98 text-left flex items-start gap-2.5 sm:gap-3 group"
+              >
+                <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0 border ${tile.color} transition-transform group-hover:scale-105`}>
+                  <Icon size={18} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="font-bold text-xs sm:text-sm text-slate-900 dark:text-slate-100 block leading-tight truncate">
+                    {tile.title}
+                  </span>
+                  <span className="text-[10px] sm:text-[11px] text-slate-500 dark:text-slate-400 block truncate mt-0.5">
+                    {tile.subtitle}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
 

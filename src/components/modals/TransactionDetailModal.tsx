@@ -47,6 +47,7 @@ export const TransactionDetailModal: React.FC = () => {
   const openPaymentOut = useLedgerlyStore((state) => state.openPaymentOut);
   const deleteInvoice = useLedgerlyStore((state) => state.deleteInvoice);
   const deleteTransaction = useLedgerlyStore((state) => state.deleteTransaction);
+  const openShareInvoiceModal = useLedgerlyStore((state) => state.openShareInvoiceModal);
 
   const [shareSuccess, setShareSuccess] = useState<string | null>(null);
   const [isSharing, setIsSharing] = useState(false);
@@ -154,42 +155,35 @@ export const TransactionDetailModal: React.FC = () => {
 
   // Actions: Direct WhatsApp Sharing (actual generated PDF file attached)
   const handleShareOnWhatsApp = async () => {
+    if (inv) {
+      openShareInvoiceModal(inv);
+      return;
+    }
     setIsSharing(true);
     try {
-      if (inv) {
-        const res = await shareBillPdfFile({
-          invoice: inv,
-          business,
-          party,
-          account,
-        });
-        setShareSuccess(res.message);
-        setTimeout(() => setShareSuccess(null), 3500);
-      } else if (txn) {
-        const doc = party ? generatePartyStatementPdf(party, [], business) : null;
-        const fileName = `RECEIPT-${txn.id.substring(4, 12)}.pdf`;
-        if (doc) {
-          doc.save(fileName);
-          const pdfBlob = doc.output('blob');
-          const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf', lastModified: Date.now() });
-          const text = `Payment receipt from ${business.name}: ₹${paiseToRupees(txn.amount).toFixed(2)} on ${txn.date} via ${txn.mode}`;
-          if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-            try {
-              await navigator.share({
-                files: [pdfFile],
-                title: fileName,
-                text,
-              });
-              setShareSuccess('Receipt PDF shared!');
-              setTimeout(() => setShareSuccess(null), 3000);
-              return;
-            } catch (err: any) {
-              if (err?.name === 'AbortError') return;
-            }
+      const doc = party ? generatePartyStatementPdf(party, [], business) : null;
+      const fileName = `RECEIPT-${txn?.id ? txn.id.substring(4, 12) : 'TXN'}.pdf`;
+      if (doc && txn) {
+        doc.save(fileName);
+        const pdfBlob = doc.output('blob');
+        const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf', lastModified: Date.now() });
+        const text = `Payment receipt from ${business.name}: ₹${paiseToRupees(txn.amount).toFixed(2)} on ${txn.date} via ${txn.mode}`;
+        if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
+          try {
+            await navigator.share({
+              files: [pdfFile],
+              title: fileName,
+              text,
+            });
+            setShareSuccess('Receipt PDF shared!');
+            setTimeout(() => setShareSuccess(null), 3000);
+            return;
+          } catch (err: any) {
+            if (err?.name === 'AbortError') return;
           }
         }
-        alert('File saved, please attach it in WhatsApp');
       }
+      alert('File saved, please attach it in WhatsApp');
     } catch (err) {
       alert('Error preparing WhatsApp document share. Please try downloading the PDF directly.');
     } finally {

@@ -6,20 +6,207 @@
 
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Invoice, Business, Party, LedgerEntry, Account, Item } from '../types';
+import QRCode from 'qrcode';
+import html2canvas from 'html2canvas';
+import {
+  Invoice,
+  Business,
+  Party,
+  LedgerEntry,
+  Account,
+  PrintSettings,
+  DayBookEntry,
+  BalanceSheetData,
+  BillWisePnlRow,
+  ShareFormat,
+} from '../types';
 import { formatINR, formatFullDate, paiseToRupees } from '../utils/formatters';
 import { numberToIndianWords } from '../utils/gstCalc';
+
+// In-memory cache for generated PDF and Image files per invoice version
+const pdfCache = new Map<string, { file: File; blob: Blob; doc: jsPDF }>();
+const imageCache = new Map<string, File>();
+
+export function getCachedInvoicePdf(invoiceId: string, updatedAt?: string) {
+  return pdfCache.get(`${invoiceId}_${updatedAt || ''}`);
+}
+
+export function setCachedInvoicePdf(invoiceId: string, updatedAt: string | undefined, data: { file: File; blob: Blob; doc: jsPDF }) {
+  pdfCache.set(`${invoiceId}_${updatedAt || ''}`, data);
+}
+
+export function invalidateInvoiceCache(invoiceId: string) {
+  for (const k of Array.from(pdfCache.keys())) {
+    if (k.startsWith(invoiceId)) pdfCache.delete(k);
+  }
+  for (const k of Array.from(imageCache.keys())) {
+    if (k.startsWith(invoiceId)) imageCache.delete(k);
+  }
+}
+
+/**
+ * Helper to generate UPI Payment QR code as a base64 Data URL
+ */
+export async function generateUpiQrDataUrl(
+  upiIdOrPhone: string,
+  payeeName: string,
+  amountPaise: number,
+  billNumber: string
+): Promise<string | null> {
+  try {
+    const vpa = upiIdOrPhone.includes('@') ? upiIdOrPhone : `${upiIdOrPhone.replace(/\D/g, '')}@upi`;
+    const amountRupees = (amountPaise / 100).toFixed(2);
+    const upiUri = `upi://pay?pa=${encodeURIComponent(vpa)}&pn=${encodeURIComponent(payeeName)}&am=${amountRupees}&cu=INR&tn=${encodeURIComponent(billNumber)}`;
+    return await QRCode.toDataURL(upiUri, { width: 140, margin: 1 });
+  } catch (err) {
+    console.warn('QR Code generation failed:', err);
+    return null;
+  }
+}
+
+export function formatInvoiceMessageTemplate(
+  template: string,
+  invoice: Invoice,
+  business: Business,
+  party?: Party,
+  viewLink?: string
+): string {
+  const customerName = party?.name || invoice.partyName || 'Customer';
+  const billNo = invoice.number || 'BILL';
+  const total = (invoice.total / 100).toLocaleString('en-IN', {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: invoice.total % 100 !== 0 ? 2 : 0,
+  });
+  const due = Math.max(0, invoice.total - invoice.paidAmount);
+  const balance = (due / 100).toLocaleString('en-IN', {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: due % 100 !== 0 ? 2 : 0,
+  });
+  const shopName = business.name || 'Shree Sweet';
+  const date = invoice.date;
+
+  let text = template
+    .replace(/\{customer_name\}/g, customerName)
+    .replace(/\{bill_no\}/g, billNo)
+    .replace(/\{total\}/g, total)
+    .replace(/\{shop_name\}/g, shopName)
+    .replace(/\{balance\}/g, balance)
+    .replace(/\{date\}/g, date);
+
+  if (viewLink) {
+    if (text.includes('{link}')) {
+      text = text.replace(/\{link\}/g, viewLink);
+    } else {
+      text += `\n\nView invoice: ${viewLink}`;
+    }
+  } else {
+    text = text.replace(/\{link\}/g, '').trim();
+  }
+
+  return text;
+}
 
 export function generateInvoicePdf(
   invoice: Invoice,
   business: Business,
   party?: Party,
-  defaultAccount?: Account
+  defaultAccount?: Account,
+  printSettings?: PrintSettings,
+  qrDataUrl?: string | null
 ): jsPDF {
+  // 1. Handle Thermal Receipts (58mm / 80mm)
+  if (printSettings?.paperSize === '58mm' || printSettings?.paperSize === '80mm') {
+    const is58 = printSettings.paperSize === '58mm';
+    const width = is58 ? 58 : 80;
+    const height = Math.max(160, 100 + invoice.lines.length * 8 + (qrDataUrl ? 35 : 0));
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: [width, height],
+    });
+
+    const shopName = printSettings.shopName || business.name || 'Shree Sweet';
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(is58 ? 12 : 14);
+    doc.text(shopName, width / 2, 9, { align: 'center' });
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(is58 ? 7 : 8);
+    let y = 14;
+    if (business.address) {
+      doc.text(business.address, width / 2, y, { align: 'center', maxWidth: width - 8 });
+      y += 4;
+    }
+    doc.text(`Tel: +91 ${business.phone}`, width / 2, y, { align: 'center' });
+    y += 4;
+    if (business.gstin) {
+      doc.text(`GSTIN: ${business.gstin}`, width / 2, y, { align: 'center' });
+      y += 4;
+    }
+
+    doc.text('------------------------------------------------', width / 2, y, { align: 'center' });
+    y += 4;
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${printSettings.headerText || 'TAX INVOICE'} #${invoice.number}`, width / 2, y, { align: 'center' });
+    y += 4;
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Date: ${invoice.date}  |  ${invoice.partyName}`, width / 2, y, { align: 'center', maxWidth: width - 6 });
+    y += 5;
+    doc.text('------------------------------------------------', width / 2, y, { align: 'center' });
+    y += 4;
+
+    const itemsHead = is58 ? [['Item', 'Qty', 'Amt']] : [['#', 'Item', 'Qty', 'Rate', 'Amt']];
+    const itemsBody = invoice.lines.map((l, idx) =>
+      is58
+        ? [l.itemName, `${l.qty} ${l.unit}`, `Rs.${paiseToRupees(l.amount).toFixed(2)}`]
+        : [(idx + 1).toString(), l.itemName, `${l.qty} ${l.unit}`, `Rs.${paiseToRupees(l.rate).toFixed(2)}`, `Rs.${paiseToRupees(l.amount).toFixed(2)}`]
+    );
+
+    autoTable(doc, {
+      startY: y,
+      head: itemsHead,
+      body: itemsBody,
+      theme: 'plain',
+      headStyles: { fontStyle: 'bold', fontSize: is58 ? 7 : 8, cellPadding: 1 },
+      styles: { fontSize: is58 ? 6.5 : 7.5, cellPadding: 1 },
+      margin: { left: 3, right: 3 },
+    });
+
+    y = ((doc as any).lastAutoTable?.finalY || y + 30) + 3;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(is58 ? 7.5 : 8.5);
+    doc.text(`Total: Rs.${paiseToRupees(invoice.total).toFixed(2)}`, width - 5, y, { align: 'right' });
+    y += 4;
+    doc.text(`Paid: Rs.${paiseToRupees(invoice.paidAmount).toFixed(2)}`, width - 5, y, { align: 'right' });
+    y += 4;
+    const due = Math.max(0, invoice.total - invoice.paidAmount);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Balance Due: Rs.${paiseToRupees(due).toFixed(2)}`, width - 5, y, { align: 'right' });
+    y += 6;
+
+    if (qrDataUrl && printSettings.showQr !== false) {
+      doc.addImage(qrDataUrl, 'PNG', (width - 24) / 2, y, 24, 24);
+      y += 26;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.5);
+      doc.text('Scan to Pay via UPI', width / 2, y, { align: 'center' });
+      y += 4;
+    }
+
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(6.5);
+    doc.text(printSettings.footerText || 'Thank you! Visit again.', width / 2, y, { align: 'center', maxWidth: width - 6 });
+
+    return doc;
+  }
+
+  // 2. Standard A4 / A5 Layout
+  const paperFormat = printSettings?.paperSize === 'A5' ? 'a5' : 'a4';
+  const orientation = printSettings?.orientation || 'portrait';
   const doc = new jsPDF({
-    orientation: 'portrait',
+    orientation,
     unit: 'mm',
-    format: 'a4',
+    format: paperFormat,
   });
 
   const withGst = invoice.withGst ?? true;
@@ -232,7 +419,22 @@ export function generateInvoicePdf(
     }
     if (invoice.terms) {
       doc.text(invoice.terms, leftX, leftY, { maxWidth: 95 });
+      leftY += 4.5;
     }
+  }
+
+  // UPI QR Code on Invoice
+  if (qrDataUrl && printSettings?.showQr !== false) {
+    doc.addImage(qrDataUrl, 'PNG', leftX, leftY + 1, 22, 22);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+    doc.text('Scan to Pay via UPI', leftX + 26, leftY + 10);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(greyColor[0], greyColor[1], greyColor[2]);
+    doc.text('(GPay / PhonePe / Paytm / BHIM)', leftX + 26, leftY + 15);
+    leftY += 26;
   }
 
   // Right column: Totals summary card
@@ -254,10 +456,10 @@ export function generateInvoicePdf(
   };
 
   addSummaryRow('Subtotal', formatINR(invoice.subtotal));
-  if (invoice.discountTotal > 0) {
+  if (invoice.discountTotal > 0 && printSettings?.showDiscount !== false) {
     addSummaryRow('Total Discount', `−${formatINR(invoice.discountTotal)}`);
   }
-  if (withGst) {
+  if (withGst && printSettings?.showTax !== false) {
     if (invoice.taxableAmount) {
       addSummaryRow('Taxable Amount', formatINR(invoice.taxableAmount));
     }
@@ -289,17 +491,23 @@ export function generateInvoicePdf(
   addSummaryRow('Paid / Received', formatINR(invoice.paidAmount));
 
   const due = Math.max(0, invoice.total - invoice.paidAmount);
-  addSummaryRow('Balance Due', formatINR(due), true, due > 0);
+  if (printSettings?.showBalanceDue !== false) {
+    addSummaryRow('Balance Due', formatINR(due), true, due > 0);
+  }
 
   // Footer & Authorized Signatory
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.setTextColor(greyColor[0], greyColor[1], greyColor[2]);
-  doc.text(`For ${business.name}`, 196, 262, { align: 'right' });
-  doc.text('Authorized Signatory', 196, 276, { align: 'right' });
+  const shopName = printSettings?.shopName || business.name || 'Shree Sweet';
+  if (printSettings?.showSignature !== false) {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(greyColor[0], greyColor[1], greyColor[2]);
+    doc.text(`For ${shopName}`, 196, 262, { align: 'right' });
+    doc.text('Authorized Signatory', 196, 276, { align: 'right' });
+  }
 
   doc.setFontSize(7.5);
-  doc.text('Generated via Ledgerly – Simple Accounting for Everyone', 105, 286, { align: 'center' });
+  doc.setTextColor(greyColor[0], greyColor[1], greyColor[2]);
+  doc.text(printSettings?.footerText || 'Generated via Ledgerly – Simple Accounting for Everyone', 105, 286, { align: 'center' });
 
   return doc;
 }
@@ -481,24 +689,223 @@ export interface ShareBillPdfOptions {
   business: Business;
   party?: Party;
   account?: Account;
+  format?: ShareFormat; // 'PDF' | 'IMAGE' | 'LINK'
+  messageTemplate?: string;
+  printSettings?: PrintSettings;
+  viewLink?: string;
 }
 
 /**
- * Generates the bill as an authentic PDF file, saves it to the device,
- * and shares the actual PDF FILE through native Web Share API (with file attachment).
- * If native file sharing is unavailable, falls back to downloading the file
- * and shows: "File saved, please attach it in WhatsApp".
- * Never falls back to text-only links silently.
+ * Generate Day Book PDF
  */
-export async function shareBillPdfFile({
-  invoice,
-  business,
-  party,
-  account,
-}: ShareBillPdfOptions): Promise<{ success: boolean; message: string; fileName: string; sharedViaNativeSheet: boolean }> {
-  const doc = generateInvoicePdf(invoice, business, party, account);
-  
-  // Format file name format: Invoice-[InvoiceNo]-[CustomerName].pdf
+export function generateDayBookPdf(
+  date: string,
+  entries: DayBookEntry[],
+  business: Business,
+  totals: { totalIn: number; totalOut: number; net: number }
+): jsPDF {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const primaryColor = [79, 70, 229];
+
+  doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.rect(0, 0, 210, 8, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(18);
+  doc.setTextColor(15, 23, 42);
+  doc.text(business.name || 'Shree Sweet', 14, 22);
+
+  doc.setFontSize(15);
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.text('DAY BOOK REPORT', 196, 22, { align: 'right' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`Date: ${formatFullDate(date)}`, 14, 29);
+  doc.text(`Total In: ${formatINR(totals.totalIn)} | Total Out: ${formatINR(totals.totalOut)} | Net: ${formatINR(totals.net)}`, 196, 29, { align: 'right' });
+
+  const tableData = entries.map((e, idx) => [
+    (idx + 1).toString(),
+    e.time || '—',
+    e.type.replace('_', ' '),
+    e.partyName || '—',
+    e.refNumber || '—',
+    e.mode,
+    e.inflow > 0 ? `+${formatINR(e.inflow)}` : '—',
+    e.outflow > 0 ? `−${formatINR(e.outflow)}` : '—',
+  ]);
+
+  autoTable(doc, {
+    startY: 34,
+    head: [['#', 'Time', 'Type', 'Party / Description', 'Ref #', 'Mode', 'Money In (₹)', 'Money Out (₹)']],
+    body: tableData,
+    theme: 'striped',
+    headStyles: { fillColor: [79, 70, 229], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
+    styles: { fontSize: 8, cellPadding: 2.5 },
+    columnStyles: {
+      0: { cellWidth: 8, halign: 'center' },
+      1: { cellWidth: 16 },
+      2: { cellWidth: 26 },
+      3: { cellWidth: 54 },
+      4: { cellWidth: 24 },
+      5: { cellWidth: 18, halign: 'center' },
+      6: { cellWidth: 22, halign: 'right' },
+      7: { cellWidth: 22, halign: 'right' },
+    },
+  });
+
+  const finalY = (doc as any).lastAutoTable?.finalY || 100;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(15, 23, 42);
+  doc.text(`Net Day Position: ${formatINR(totals.net)}`, 196, finalY + 10, { align: 'right' });
+
+  return doc;
+}
+
+/**
+ * Generate Balance Sheet PDF
+ */
+export function generateBalanceSheetPdf(
+  asOnDate: string,
+  data: BalanceSheetData,
+  business: Business
+): jsPDF {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const primaryColor = [79, 70, 229];
+
+  doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.rect(0, 0, 210, 8, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(18);
+  doc.setTextColor(15, 23, 42);
+  doc.text(business.name || 'Shree Sweet', 14, 22);
+
+  doc.setFontSize(15);
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.text('BALANCE SHEET', 196, 22, { align: 'right' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`As on: ${formatFullDate(asOnDate)}`, 14, 29);
+  doc.text(`Status: ${data.isBalanced ? 'Balanced' : 'Unbalanced'}`, 196, 29, { align: 'right' });
+
+  const rows = [
+    ['LIABILITIES & OWNER EQUITY', 'AMOUNT (₹)', 'ASSETS', 'AMOUNT (₹)'],
+    ['Sundry Creditors (Payables)', formatINR(data.liabilities.sundryCreditors), 'Cash in Hand', formatINR(data.assets.cashInHand)],
+    ['Capital & Opening Reserves', formatINR(data.liabilities.capitalAndReserves), 'Bank Accounts', formatINR(data.assets.totalBank)],
+    ['Net Profit / Loss Carried In', formatINR(data.liabilities.netProfitCarriedIn), 'Sundry Debtors (Receivables)', formatINR(data.assets.sundryDebtors)],
+    ['', '', 'Closing Stock Valuation', formatINR(data.assets.closingStockValue)],
+    ['TOTAL LIABILITIES', formatINR(data.liabilities.totalLiabilities), 'TOTAL ASSETS', formatINR(data.assets.totalAssets)],
+  ];
+
+  autoTable(doc, {
+    startY: 34,
+    head: [rows[0]],
+    body: rows.slice(1),
+    theme: 'grid',
+    headStyles: { fillColor: [79, 70, 229], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
+    styles: { fontSize: 8.5, cellPadding: 3.5 },
+    columnStyles: {
+      0: { cellWidth: 55 },
+      1: { cellWidth: 35, halign: 'right' },
+      2: { cellWidth: 55 },
+      3: { cellWidth: 35, halign: 'right' },
+    },
+  });
+
+  return doc;
+}
+
+/**
+ * Generate Bill-wise Profit and Loss PDF
+ */
+export function generateBillWisePnlPdf(
+  rows: BillWisePnlRow[],
+  business: Business,
+  dateRange?: string
+): jsPDF {
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const primaryColor = [79, 70, 229];
+
+  doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.rect(0, 0, 210, 8, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(18);
+  doc.setTextColor(15, 23, 42);
+  doc.text(business.name || 'Shree Sweet', 14, 22);
+
+  doc.setFontSize(15);
+  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+  doc.text('BILL-WISE PROFIT & LOSS', 196, 22, { align: 'right' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`Period: ${dateRange || 'All Time'}`, 14, 29);
+
+  let totalSale = 0;
+  let totalCost = 0;
+  let totalProfit = 0;
+
+  const tableData = rows.map((r, idx) => {
+    totalSale += r.saleAmount;
+    totalCost += r.costAmount;
+    totalProfit += r.profitAmount;
+    return [
+      (idx + 1).toString(),
+      r.billNumber,
+      r.date,
+      r.customerName,
+      `₹${(r.saleAmount / 100).toFixed(2)}`,
+      `₹${(r.costAmount / 100).toFixed(2)}`,
+      `₹${(r.profitAmount / 100).toFixed(2)}`,
+      `${r.marginPercent.toFixed(1)}%`,
+    ];
+  });
+
+  autoTable(doc, {
+    startY: 34,
+    head: [['#', 'Bill No', 'Date', 'Customer', 'Sale (₹)', 'Cost (₹)', 'P/L (₹)', 'Margin']],
+    body: tableData,
+    theme: 'striped',
+    headStyles: { fillColor: [79, 70, 229], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
+    styles: { fontSize: 8, cellPadding: 2.5 },
+    columnStyles: {
+      0: { cellWidth: 8, halign: 'center' },
+      1: { cellWidth: 28 },
+      2: { cellWidth: 22 },
+      3: { cellWidth: 52 },
+      4: { cellWidth: 22, halign: 'right' },
+      5: { cellWidth: 22, halign: 'right' },
+      6: { cellWidth: 22, halign: 'right' },
+      7: { cellWidth: 16, halign: 'center' },
+    },
+  });
+
+  const finalY = (doc as any).lastAutoTable?.finalY || 100;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.5);
+  doc.setTextColor(15, 23, 42);
+  const avgMargin = totalSale > 0 ? ((totalProfit / totalSale) * 100).toFixed(1) : '0';
+  doc.text(`Total Sale: ${formatINR(totalSale)} | Total Cost: ${formatINR(totalCost)} | Net Profit: ${formatINR(totalProfit)} (${avgMargin}%)`, 196, finalY + 9, { align: 'right' });
+
+  return doc;
+}
+
+/**
+ * Generate high-resolution JPG image file of the invoice for direct WhatsApp photo sharing
+ */
+export async function generateInvoiceImageFile(
+  invoice: Invoice,
+  business: Business,
+  party?: Party,
+  printSettings?: PrintSettings
+): Promise<File> {
   const cleanInvNo = (invoice.number || 'BILL')
     .replace(/[^a-zA-Z0-9.-]/g, '-')
     .replace(/-+/g, '-')
@@ -508,18 +915,265 @@ export async function shareBillPdfFile({
     .replace(/[^a-zA-Z0-9.-]/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
+  const fileName = `Invoice-${cleanInvNo}-${cleanCustomer}.jpg`;
+
+  const cached = imageCache.get(`${invoice.id}_${invoice.updatedAt || ''}`);
+  if (cached) return cached;
+
+  if (typeof document !== 'undefined') {
+    const shopName = printSettings?.shopName || business.name || 'Shree Sweet';
+    const partyName = party?.name || invoice.partyName || 'Customer';
+    const dueAmount = Math.max(0, invoice.total - invoice.paidAmount);
+
+    const container = document.createElement('div');
+    container.style.position = 'fixed';
+    container.style.left = '-9999px';
+    container.style.top = '-9999px';
+    container.style.width = '794px';
+    container.style.backgroundColor = '#ffffff';
+    container.style.color = '#0f172a';
+    container.style.fontFamily = 'system-ui, -apple-system, sans-serif';
+    container.style.padding = '36px';
+    container.style.boxSizing = 'border-box';
+
+    const linesHtml = invoice.lines.map((l, i) => `
+      <tr style="border-bottom: 1px solid #e2e8f0; font-size: 13px;">
+        <td style="padding: 10px 8px; text-align: center;">${i + 1}</td>
+        <td style="padding: 10px 8px; font-weight: 600;">${l.itemName}</td>
+        <td style="padding: 10px 8px; text-align: center;">${l.qty} ${l.unit}</td>
+        <td style="padding: 10px 8px; text-align: right;">₹${(l.rate / 100).toFixed(2)}</td>
+        <td style="padding: 10px 8px; text-align: right; font-weight: 700;">₹${(l.amount / 100).toFixed(2)}</td>
+      </tr>
+    `).join('');
+
+    container.innerHTML = `
+      <div style="border-bottom: 4px solid #4f46e5; padding-bottom: 16px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-start;">
+        <div>
+          <h1 style="margin: 0; font-size: 26px; font-weight: 800; color: #1e1b4b;">${shopName}</h1>
+          <p style="margin: 4px 0 0; font-size: 13px; color: #64748b;">${business.address || ''} | Mob: +91 ${business.phone || ''}</p>
+          ${business.gstin ? `<p style="margin: 2px 0 0; font-size: 12px; color: #4338ca; font-weight: bold;">GSTIN: ${business.gstin}</p>` : ''}
+        </div>
+        <div style="text-align: right;">
+          <span style="font-size: 20px; font-weight: 800; color: #4f46e5; text-transform: uppercase;">TAX INVOICE</span>
+          <p style="margin: 4px 0 0; font-size: 13px; font-weight: 600;">#${invoice.number}</p>
+          <p style="margin: 2px 0 0; font-size: 12px; color: #64748b;">Date: ${formatFullDate(invoice.date)}</p>
+        </div>
+      </div>
+
+      <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 18px; margin-bottom: 24px;">
+        <span style="font-size: 11px; font-weight: 700; color: #6366f1; text-transform: uppercase; letter-spacing: 0.5px;">BILLED TO</span>
+        <h3 style="margin: 4px 0 0; font-size: 17px; font-weight: 700; color: #0f172a;">${partyName}</h3>
+        <p style="margin: 2px 0 0; font-size: 13px; color: #64748b;">Phone: +91 ${party?.phone || 'N/A'}</p>
+      </div>
+
+      <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
+        <thead>
+          <tr style="background-color: #4f46e5; color: #ffffff; font-size: 12px; text-transform: uppercase;">
+            <th style="padding: 10px 8px; width: 40px; text-align: center;">#</th>
+            <th style="padding: 10px 8px; text-align: left;">Item Description</th>
+            <th style="padding: 10px 8px; width: 100px; text-align: center;">Qty</th>
+            <th style="padding: 10px 8px; width: 100px; text-align: right;">Rate</th>
+            <th style="padding: 10px 8px; width: 120px; text-align: right;">Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${linesHtml}
+        </tbody>
+      </table>
+
+      <div style="display: flex; justify-content: flex-end; margin-bottom: 24px;">
+        <div style="width: 280px; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; background-color: #f8fafc;">
+          <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px;">
+            <span>Subtotal:</span>
+            <span>₹${(invoice.subtotal / 100).toFixed(2)}</span>
+          </div>
+          ${invoice.taxTotal > 0 ? `
+          <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; color: #4338ca;">
+            <span>GST / Tax:</span>
+            <span>₹${(invoice.taxTotal / 100).toFixed(2)}</span>
+          </div>` : ''}
+          <div style="border-top: 1px solid #cbd5e1; padding-top: 8px; margin-top: 6px; display: flex; justify-content: space-between; font-size: 16px; font-weight: 800; color: #0f172a;">
+            <span>Grand Total:</span>
+            <span style="color: #4f46e5;">₹${(invoice.total / 100).toFixed(2)}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 13px; margin-top: 6px; color: #16a34a; font-weight: 600;">
+            <span>Paid Amount:</span>
+            <span>₹${(invoice.paidAmount / 100).toFixed(2)}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 14px; margin-top: 4px; font-weight: 700; color: ${dueAmount > 0 ? '#dc2626' : '#16a34a'};">
+            <span>Balance Due:</span>
+            <span>₹${(dueAmount / 100).toFixed(2)}</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="border-top: 1px solid #e2e8f0; padding-top: 16px; display: flex; justify-content: space-between; align-items: flex-end; color: #64748b; font-size: 12px;">
+        <div>
+          <p style="margin: 0; font-weight: 600; color: #475569;">${printSettings?.footerText || 'Thank you for your business!'}</p>
+          <p style="margin: 2px 0 0;">Generated via Ledgerly</p>
+        </div>
+        <div style="text-align: right;">
+          <p style="margin: 0; font-weight: 600; color: #0f172a;">For ${shopName}</p>
+          <div style="height: 35px;"></div>
+          <p style="margin: 0; border-top: 1px dashed #cbd5e1; padding-top: 4px;">Authorized Signatory</p>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(container);
+    try {
+      const canvas = await html2canvas(container, {
+        scale: 2,
+        backgroundColor: '#ffffff',
+        logging: false,
+      });
+      const blob = await new Promise<Blob>((resolve) => {
+        canvas.toBlob((b) => resolve(b || new Blob()), 'image/jpeg', 0.95);
+      });
+      const file = new File([blob], fileName, { type: 'image/jpeg', lastModified: Date.now() });
+      imageCache.set(`${invoice.id}_${invoice.updatedAt || ''}`, file);
+      return file;
+    } finally {
+      if (container.parentNode) {
+        container.parentNode.removeChild(container);
+      }
+    }
+  }
+
+  return new File([new Blob()], fileName, { type: 'image/jpeg' });
+}
+
+/**
+ * Enhanced Invoice Sharing function supporting:
+ * 1. Format Choice: PDF (default), Image (JPG), or View-only Link
+ * 2. Editable message template with placeholders
+ * 3. In-memory caching and offline resilience
+ */
+export async function shareBillPdfFile({
+  invoice,
+  business,
+  party,
+  account,
+  format = 'PDF',
+  messageTemplate,
+  printSettings,
+  viewLink,
+}: ShareBillPdfOptions): Promise<{ success: boolean; message: string; fileName: string; sharedViaNativeSheet: boolean }> {
+  // Format clean file name: Invoice-[InvoiceNo]-[CustomerName].pdf
+  const cleanInvNo = (invoice.number || 'BILL')
+    .replace(/[^a-zA-Z0-9.-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+  const cleanCustomer = (party?.name || invoice.partyName || 'Customer')
+    .trim()
+    .replace(/[^a-zA-Z0-9.-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+  
+  const templateToUse = messageTemplate || printSettings?.messageTemplate || 
+    'Dear {customer_name}, here is your Bill #{bill_no} of ₹{total} from {shop_name}. Balance due: ₹{balance}. Thank you!';
+
+  // Generate QR code if needed
+  let qrDataUrl: string | null = null;
+  if (printSettings?.showQr !== false) {
+    qrDataUrl = await generateUpiQrDataUrl(
+      business.phone || '9876543210',
+      printSettings?.shopName || business.name || 'Shree Sweet',
+      invoice.total,
+      invoice.number
+    );
+  }
+
+  // Handle LINK format
+  if (format === 'LINK') {
+    const resolvedLink = viewLink || (typeof window !== 'undefined' ? `${window.location.origin}/?view_invoice=${invoice.id}` : `https://legerly-an-accounting-app.vercel.app/?view_invoice=${invoice.id}`);
+    const caption = formatInvoiceMessageTemplate(templateToUse, invoice, business, party, resolvedLink);
+    const phone = party?.phone ? party.phone.replace(/\D/g, '') : '';
+    const waUrl = phone
+      ? `https://wa.me/91${phone}?text=${encodeURIComponent(caption)}`
+      : `https://wa.me/?text=${encodeURIComponent(caption)}`;
+
+    if (typeof window !== 'undefined') {
+      window.open(waUrl, '_blank');
+    }
+
+    return {
+      success: true,
+      message: `Invoice view link created and opened in WhatsApp.`,
+      fileName: `${cleanInvNo}-link`,
+      sharedViaNativeSheet: false,
+    };
+  }
+
+  // Handle IMAGE format
+  if (format === 'IMAGE') {
+    const imgFile = await generateInvoiceImageFile(invoice, business, party, printSettings);
+    const caption = formatInvoiceMessageTemplate(templateToUse, invoice, business, party);
+
+    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+      const canShare = typeof navigator.canShare === 'function' && navigator.canShare({ files: [imgFile] });
+      if (canShare) {
+        try {
+          await navigator.share({
+            files: [imgFile],
+            title: imgFile.name,
+            text: caption,
+          });
+          return {
+            success: true,
+            message: `Invoice image (${imgFile.name}) attached and shared directly.`,
+            fileName: imgFile.name,
+            sharedViaNativeSheet: true,
+          };
+        } catch (err: any) {
+          if (err?.name === 'AbortError') {
+            return {
+              success: true,
+              message: `Share dialog dismissed.`,
+              fileName: imgFile.name,
+              sharedViaNativeSheet: true,
+            };
+          }
+        }
+      }
+    }
+
+    // Fallback: Download JPG and open WhatsApp
+    const phone = party?.phone ? party.phone.replace(/\D/g, '') : '';
+    const waUrl = phone
+      ? `https://wa.me/91${phone}?text=${encodeURIComponent(caption + `\n\n(Note: "${imgFile.name}" downloaded to your device; please attach it here).`)}`
+      : `https://wa.me/?text=${encodeURIComponent(caption + `\n\n(Note: "${imgFile.name}" downloaded to your device; please attach it here).`)}`;
+    
+    if (typeof window !== 'undefined') {
+      window.open(waUrl, '_blank');
+      alert(`Image saved (${imgFile.name}). Please attach it in WhatsApp.`);
+    }
+
+    return {
+      success: true,
+      message: `Image saved. Please attach in WhatsApp.`,
+      fileName: imgFile.name,
+      sharedViaNativeSheet: false,
+    };
+  }
+
+  // Default: Handle PDF format
   const fileName = `Invoice-${cleanInvNo}-${cleanCustomer}.pdf`;
+  let pdfFile: File;
+  let doc: jsPDF;
 
-  // Create real File object from PDF binary Blob in memory (NO upfront Chrome download bar!)
-  const pdfBlob = doc.output('blob');
-  const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf', lastModified: Date.now() });
+  const cached = getCachedInvoicePdf(invoice.id, invoice.updatedAt);
+  if (cached) {
+    pdfFile = cached.file;
+    doc = cached.doc;
+  } else {
+    doc = generateInvoicePdf(invoice, business, party, account, printSettings, qrDataUrl);
+    const pdfBlob = doc.output('blob');
+    pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf', lastModified: Date.now() });
+    setCachedInvoicePdf(invoice.id, invoice.updatedAt, { file: pdfFile, blob: pdfBlob, doc });
+  }
 
-  const partyName = party?.name || invoice.partyName || 'Customer';
-  const amountRupees = (invoice.total / 100).toLocaleString('en-IN', {
-    maximumFractionDigits: 2,
-    minimumFractionDigits: (invoice.total % 100 !== 0 ? 2 : 0),
-  });
-  const caption = `Hello ${partyName}, your invoice ${invoice.number} for ₹${amountRupees} is attached. Thank you!`;
+  const caption = formatInvoiceMessageTemplate(templateToUse, invoice, business, party);
 
   // 1. Native Web Share API with actual PDF File attached directly
   if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
@@ -582,3 +1236,4 @@ export async function shareBillPdfFile({
     sharedViaNativeSheet: false,
   };
 }
+

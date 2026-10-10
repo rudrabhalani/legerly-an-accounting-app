@@ -31,8 +31,14 @@ import { FinancialYearModal } from './components/modals/FinancialYearModal';
 import { ReconcileModal } from './components/modals/ReconcileModal';
 import { SettingsModal } from './components/modals/SettingsModal';
 import { MultiUserModal } from './components/modals/MultiUserModal';
-import { PeriodCashflowModal } from './components/modals/PeriodCashflowModal';
 import { TransactionDetailModal } from './components/modals/TransactionDetailModal';
+import { DayBookModal } from './components/modals/DayBookModal';
+import { BalanceSheetModal } from './components/modals/BalanceSheetModal';
+import { BillWisePnlModal } from './components/modals/BillWisePnlModal';
+import { PrintSettingsModal } from './components/modals/PrintSettingsModal';
+import { BackupRestoreModal } from './components/modals/BackupRestoreModal';
+import { ShareInvoiceModal } from './components/modals/ShareInvoiceModal';
+import { PeriodCashflowModal } from './components/modals/PeriodCashflowModal';
 import { ToastSnackbar } from './components/common/ToastSnackbar';
 
 export function App() {
@@ -91,6 +97,12 @@ export function App() {
       <SettingsModal />
       <MultiUserModal />
       <TransactionDetailModal />
+      <DayBookModal />
+      <BalanceSheetModal />
+      <BillWisePnlModal />
+      <PrintSettingsModal />
+      <BackupRestoreModal />
+      <ShareInvoiceModal />
       <PartyLedgerScreen />
       <AccountLedgerScreen />
 

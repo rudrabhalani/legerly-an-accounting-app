@@ -25,7 +25,32 @@ import {
   Expense,
   PaymentMode,
   InvoiceType,
+  PrintSettings,
 } from '../types';
+
+export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
+  paperSize: 'A4',
+  orientation: 'portrait',
+  margins: 10,
+  shopName: 'Shree Sweet',
+  address: '',
+  phone: '',
+  gstin: '',
+  headerText: 'TAX INVOICE',
+  footerText: 'Thank you for your business! Goods once sold will not be taken back.',
+  showTax: true,
+  showDiscount: true,
+  showHsn: true,
+  showQr: true,
+  showSignature: true,
+  showBalanceDue: true,
+  fontSize: 'medium',
+  copies: 1,
+  language: 'en',
+  printerType: 'BROWSER',
+  selectedPrinterName: 'Default System Printer',
+  messageTemplate: 'Dear {customer_name}, here is your Bill #{bill_no} of ₹{total} from {shop_name}. Balance due: ₹{balance}. Thank you!',
+};
 import {
   INITIAL_BUSINESS,
   INITIAL_ACCOUNTS,
@@ -99,6 +124,36 @@ interface LedgerlyState {
   selectedPartyIdForLedger: string | null;
   selectedAccountIdForLedger: string | null;
   prefilledPartyIdForTxn: string | null;
+
+  // Print & Sharing Settings
+  printSettings: PrintSettings;
+  updatePrintSettings: (settings: Partial<PrintSettings>) => void;
+
+  // New Feature Screens & Modals
+  isDayBookOpen: boolean;
+  openDayBook: () => void;
+  closeDayBook: () => void;
+
+  isBalanceSheetOpen: boolean;
+  openBalanceSheet: () => void;
+  closeBalanceSheet: () => void;
+
+  isBillWisePnlOpen: boolean;
+  openBillWisePnl: () => void;
+  closeBillWisePnl: () => void;
+
+  isPrintSettingsOpen: boolean;
+  openPrintSettings: () => void;
+  closePrintSettings: () => void;
+
+  isBackupModalOpen: boolean;
+  openBackupModal: () => void;
+  closeBackupModal: () => void;
+
+  isShareInvoiceModalOpen: boolean;
+  selectedInvoiceForShare: Invoice | null;
+  openShareInvoiceModal: (invoice: Invoice) => void;
+  closeShareInvoiceModal: () => void;
 
   // Security
   isLocked: boolean;
@@ -300,6 +355,42 @@ export const useLedgerlyStore = create<LedgerlyState>()(
       selectedPartyIdForLedger: null,
       selectedAccountIdForLedger: null,
       prefilledPartyIdForTxn: null,
+
+      // Print & Sharing Settings
+      printSettings: DEFAULT_PRINT_SETTINGS,
+      updatePrintSettings: (updates) =>
+        set((state) => ({
+          printSettings: { ...state.printSettings, ...updates },
+        })),
+
+      // New Screens & Modals
+      isDayBookOpen: false,
+      openDayBook: () => set({ isDayBookOpen: true }),
+      closeDayBook: () => set({ isDayBookOpen: false }),
+
+      isBalanceSheetOpen: false,
+      openBalanceSheet: () => set({ isBalanceSheetOpen: true }),
+      closeBalanceSheet: () => set({ isBalanceSheetOpen: false }),
+
+      isBillWisePnlOpen: false,
+      openBillWisePnl: () => set({ isBillWisePnlOpen: true }),
+      closeBillWisePnl: () => set({ isBillWisePnlOpen: false }),
+
+      isPrintSettingsOpen: false,
+      openPrintSettings: () => set({ isPrintSettingsOpen: true }),
+      closePrintSettings: () => set({ isPrintSettingsOpen: false }),
+
+      isBackupModalOpen: false,
+      openBackupModal: () => set({ isBackupModalOpen: true }),
+      closeBackupModal: () => set({ isBackupModalOpen: false }),
+
+      isShareInvoiceModalOpen: false,
+      selectedInvoiceForShare: null,
+      openShareInvoiceModal: (invoice) =>
+        set({ isShareInvoiceModalOpen: true, selectedInvoiceForShare: invoice }),
+      closeShareInvoiceModal: () =>
+        set({ isShareInvoiceModalOpen: false, selectedInvoiceForShare: null }),
+
       isLocked: false,
 
       getCurrentUser: () => {

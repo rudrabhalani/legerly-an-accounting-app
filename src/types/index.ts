@@ -246,3 +246,82 @@ export interface BankStatementRow {
 }
 
 export type DateFilterPeriod = 'TODAY' | 'THIS_WEEK' | 'THIS_MONTH' | 'THIS_YEAR' | 'ALL' | 'CUSTOM';
+
+export type PaperSize = 'A4' | 'A5' | '58mm' | '80mm';
+export type PageOrientation = 'portrait' | 'landscape';
+export type PrinterType = 'BROWSER' | 'BLUETOOTH' | 'USB';
+export type ShareFormat = 'PDF' | 'IMAGE' | 'LINK';
+
+export interface PrintSettings {
+  paperSize: PaperSize;
+  orientation: PageOrientation;
+  margins: number; // in mm (e.g. 5, 10, 15)
+  shopLogo?: string;
+  shopName: string;
+  address: string;
+  phone: string;
+  gstin?: string;
+  headerText: string;
+  footerText: string;
+  showTax: boolean;
+  showDiscount: boolean;
+  showHsn: boolean;
+  showQr: boolean;
+  showSignature: boolean;
+  showBalanceDue: boolean;
+  fontSize: 'small' | 'medium' | 'large';
+  copies: number;
+  language: LanguageCode;
+  printerType: PrinterType;
+  selectedPrinterName?: string;
+  messageTemplate: string;
+}
+
+export interface DayBookEntry {
+  id: string;
+  time: string;
+  date: string;
+  type: 'SALE' | 'PURCHASE' | 'PAYMENT_IN' | 'PAYMENT_OUT' | 'EXPENSE' | 'TRANSFER';
+  refNumber: string;
+  partyName: string;
+  partyId?: string;
+  mode: string;
+  inflow: number; // in paise
+  outflow: number; // in paise
+  net: number; // in paise
+  originalTransactionId?: string;
+  originalInvoiceId?: string;
+}
+
+export interface BalanceSheetData {
+  asOnDate: string;
+  assets: {
+    cashInHand: number;
+    bankBalances: { accountId: string; bankName: string; balance: number }[];
+    totalBank: number;
+    sundryDebtors: number; // Customer receivables
+    closingStockValue: number;
+    totalAssets: number;
+  };
+  liabilities: {
+    sundryCreditors: number; // Supplier payables
+    capitalAndReserves: number;
+    netProfitCarriedIn: number;
+    totalLiabilities: number;
+  };
+  isBalanced: boolean;
+  difference: number;
+}
+
+export interface BillWisePnlRow {
+  invoiceId: string;
+  billNumber: string;
+  date: string;
+  customerName: string;
+  customerId: string;
+  saleAmount: number; // paise
+  costAmount: number; // paise
+  profitAmount: number; // paise (sale - cost)
+  marginPercent: number; // percentage
+  status: InvoiceStatus;
+}

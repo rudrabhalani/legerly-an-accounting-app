@@ -830,6 +830,125 @@ describe('Store: Auto-Save Items & Transaction Details Modal', () => {
     expect(shareResult.fileName).toBe('Invoice-BILL-2627-001-Keyur-bhai.pdf');
     expect(shareResult.success).toBe(true);
   });
+
+  it('generates Day Book, Balance Sheet, and Bill-wise PnL PDFs accurately', async () => {
+    const {
+      generateDayBookPdf,
+      generateBalanceSheetPdf,
+      generateBillWisePnlPdf,
+      formatInvoiceMessageTemplate,
+    } = await import('../services/pdfService');
+    const { useLedgerlyStore } = await import('../store/useLedgerlyStore');
+    const store = useLedgerlyStore.getState();
+
+    // 1. Day Book PDF
+    const dayDoc = generateDayBookPdf(
+      '2026-10-10',
+      [
+        {
+          id: 'db-1',
+          time: '10:30',
+          date: '2026-10-10',
+          type: 'SALE',
+          refNumber: 'BILL/2627/001',
+          partyName: 'Keyur bhai',
+          mode: 'CASH',
+          inflow: 1147000,
+          outflow: 0,
+          net: 1147000,
+        },
+      ],
+      store.business,
+      { totalIn: 1147000, totalOut: 0, net: 1147000 }
+    );
+    expect(dayDoc).toBeDefined();
+    expect(dayDoc.output('blob').size).toBeGreaterThan(500);
+
+    // 2. Balance Sheet PDF
+    const bsDoc = generateBalanceSheetPdf(
+      '2026-10-10',
+      {
+        asOnDate: '2026-10-10',
+        assets: {
+          cashInHand: 500000,
+          bankBalances: [{ accountId: 'acc-1', bankName: 'SBI', balance: 1000000 }],
+          totalBank: 1000000,
+          sundryDebtors: 300000,
+          closingStockValue: 200000,
+          totalAssets: 2000000,
+        },
+        liabilities: {
+          sundryCreditors: 500000,
+          capitalAndReserves: 1000000,
+          netProfitCarriedIn: 500000,
+          totalLiabilities: 2000000,
+        },
+        isBalanced: true,
+        difference: 0,
+      },
+      store.business
+    );
+    expect(bsDoc).toBeDefined();
+    expect(bsDoc.output('blob').size).toBeGreaterThan(500);
+
+    // 3. Bill-wise P&L PDF
+    const pnlDoc = generateBillWisePnlPdf(
+      [
+        {
+          invoiceId: 'inv-1',
+          billNumber: 'BILL/2627/001',
+          date: '2026-10-10',
+          customerName: 'Keyur bhai',
+          customerId: 'cust-1',
+          saleAmount: 1147000,
+          costAmount: 800000,
+          profitAmount: 347000,
+          marginPercent: 30.25,
+          status: 'PAID',
+        },
+      ],
+      store.business
+    );
+    expect(pnlDoc).toBeDefined();
+    expect(pnlDoc.output('blob').size).toBeGreaterThan(500);
+
+    // 4. Message template placeholder replacement
+    const template = 'Dear {customer_name}, here is your Bill #{bill_no} of ₹{total} from {shop_name}. Balance due: ₹{balance}. Thank you!';
+    const formatted = formatInvoiceMessageTemplate(
+      template,
+      {
+        id: 'inv-1',
+        type: 'SALE',
+        number: 'BILL/2627/001',
+        partyId: 'p1',
+        partyName: 'Keyur bhai',
+        date: '2026-10-10',
+        dueDate: '2026-10-10',
+        lines: [],
+        subtotal: 1147000,
+        discountTotal: 0,
+        taxTotal: 0,
+        roundOff: 0,
+        total: 1147000,
+        paidAmount: 1147000,
+        status: 'PAID',
+        createdAt: '2026-10-10',
+        updatedAt: '2026-10-10',
+        isDeleted: false,
+      },
+      { ...store.business, name: 'Shree Sweet' }
+    );
+
+    expect(formatted).toContain('Dear Keyur bhai');
+    expect(formatted).toContain('Bill #BILL/2627/001');
+    expect(formatted).toContain('Shree Sweet');
+    expect(formatted).toContain('Balance due: ₹0');
+
+    // 5. Print settings store updates
+    store.updatePrintSettings({ paperSize: '58mm', showQr: false });
+    expect(useLedgerlyStore.getState().printSettings.paperSize).toBe('58mm');
+    expect(useLedgerlyStore.getState().printSettings.showQr).toBe(false);
+  });
 });
 
 

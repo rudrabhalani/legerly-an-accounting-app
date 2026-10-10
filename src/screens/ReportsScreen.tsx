@@ -29,6 +29,7 @@ import {
   AlertTriangle,
   Clock,
   BookOpen,
+  Scale,
 } from 'lucide-react';
 
 export const ReportsScreen: React.FC = () => {
@@ -43,6 +44,9 @@ export const ReportsScreen: React.FC = () => {
   const activeFY = useLedgerlyStore((state) => state.activeFinancialYear);
   const financialYears = useLedgerlyStore((state) => state.financialYears);
   const setActiveFinancialYear = useLedgerlyStore((state) => state.setActiveFinancialYear);
+  const openBalanceSheet = useLedgerlyStore((state) => state.openBalanceSheet);
+  const openBillWisePnl = useLedgerlyStore((state) => state.openBillWisePnl);
+  const openDayBook = useLedgerlyStore((state) => state.openDayBook);
   const language = useLedgerlyStore((state) => state.business.language);
   const t = getTranslation(language);
 
@@ -177,6 +181,22 @@ export const ReportsScreen: React.FC = () => {
             </button>
           );
         })}
+        <button
+          type="button"
+          onClick={openBalanceSheet}
+          className="px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-all border bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-50"
+        >
+          <Scale size={14} />
+          <span>Balance Sheet ↗</span>
+        </button>
+        <button
+          type="button"
+          onClick={openBillWisePnl}
+          className="px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-all border bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+        >
+          <TrendingUp size={14} />
+          <span>Bill-wise P&L ↗</span>
+        </button>
       </div>
 
       {/* 1. SALE REGISTER */}

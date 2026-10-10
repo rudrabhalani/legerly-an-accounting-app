@@ -71,6 +71,7 @@ export const InvoiceScreen: React.FC = () => {
   const addParty = useLedgerlyStore((state) => state.addParty);
   const addPartiesBatch = useLedgerlyStore((state) => state.addPartiesBatch);
   const addItem = useLedgerlyStore((state) => state.addItem);
+  const openShareInvoiceModal = useLedgerlyStore((state) => state.openShareInvoiceModal);
   const canEditDelete = useLedgerlyStore((state) => state.canCurrentUserEditDelete());
 
   const [partySearchTerm, setPartySearchTerm] = useState('');
@@ -555,18 +556,9 @@ export const InvoiceScreen: React.FC = () => {
     confetti({ particleCount: 40, spread: 60, origin: { y: 0.8 } });
 
     if (andShare) {
-      setIsSharingPdf(true);
-      try {
-        const defaultBankAcc = accounts.find((a) => a.id === invData.accountId && a.type === 'BANK') || accounts.find((a) => a.type === 'BANK');
-        await shareBillPdfFile({
-          invoice,
-          business,
-          party: selectedParty,
-          account: defaultBankAcc,
-        });
-      } finally {
-        setIsSharingPdf(false);
-      }
+      closeInvoiceScreen();
+      openShareInvoiceModal(invoice);
+      return;
     }
 
     if (andNew) {
