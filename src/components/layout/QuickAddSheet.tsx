@@ -29,19 +29,19 @@ export const QuickAddSheet: React.FC = () => {
       onClick={closeAddSheet}
     >
       <div
-        className="w-full max-w-lg bg-white rounded-t-3xl p-5 shadow-floating border-t border-border animate-in slide-in-from-bottom-5 duration-200 space-y-4"
+        className="w-full max-w-lg bg-white rounded-t-3xl p-5 shadow-floating border-t border-slate-200 animate-in slide-in-from-bottom-5 duration-200 space-y-4"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-border">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-200">
           <div>
-            <h3 className="text-base font-bold text-slate-primary">Quick Accounting Actions</h3>
-            <p className="text-xs text-slate-secondary">Vyapar-style Money In & Money Out modules</p>
+            <h3 className="text-base font-bold text-slate-900">Quick Accounting Actions</h3>
+            <p className="text-xs text-slate-500">Record Money In, Money Out, or Bank Transfer</p>
           </div>
           <button
             type="button"
             onClick={closeAddSheet}
-            className="p-1.5 rounded-full hover:bg-surface-subtle text-slate-secondary"
+            className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-900"
           >
             <X size={20} />
           </button>
@@ -49,9 +49,9 @@ export const QuickAddSheet: React.FC = () => {
 
         {/* Two Columns: Money In (Green) and Money Out (Red) */}
         <div className="grid grid-cols-2 gap-3">
-          {/* MONEY IN COLUMN */}
+          {/* MONEY IN COLUMN (Green border only) */}
           <div className="space-y-2">
-            <div className="flex items-center gap-1.5 px-1 text-moneyIn font-extrabold text-xs uppercase tracking-wide">
+            <div className="flex items-center gap-1.5 px-1 text-emerald-700 font-extrabold text-xs uppercase tracking-wide">
               <ArrowDownLeft size={16} strokeWidth={2.5} />
               <span>Money In</span>
             </div>
@@ -62,14 +62,14 @@ export const QuickAddSheet: React.FC = () => {
                 closeAddSheet();
                 openInvoiceScreen('SALE');
               }}
-              className="w-full p-2.5 rounded-2xl bg-white hover:bg-blue-50/60 border border-blue-400 flex items-center gap-2.5 text-left transition-all active:scale-95 shadow-xs"
+              className="w-full p-2.5 rounded-2xl bg-white hover:bg-emerald-50/50 border-2 border-emerald-500 flex items-center gap-2.5 text-left transition-all active:scale-95 shadow-xs"
             >
-              <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center flex-shrink-0">
+              <div className="w-8 h-8 rounded-xl bg-white border border-emerald-300 text-emerald-600 flex items-center justify-center flex-shrink-0">
                 <Receipt size={16} />
               </div>
               <div>
-                <span className="text-xs font-bold text-slate-primary block leading-tight">Add Sale</span>
-                <span className="text-[10px] text-blue-600">Tax Invoice</span>
+                <span className="text-xs font-bold text-slate-900 block leading-tight">Add Sale</span>
+                <span className="text-[10px] text-emerald-700">Tax Invoice</span>
               </div>
             </button>
 
@@ -79,14 +79,14 @@ export const QuickAddSheet: React.FC = () => {
                 closeAddSheet();
                 openPaymentIn();
               }}
-              className="w-full p-2.5 rounded-2xl bg-white hover:bg-blue-50/60 border border-blue-400 flex items-center gap-2.5 text-left transition-all active:scale-95 shadow-xs"
+              className="w-full p-2.5 rounded-2xl bg-white hover:bg-emerald-50/50 border-2 border-emerald-500 flex items-center gap-2.5 text-left transition-all active:scale-95 shadow-xs"
             >
-              <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center flex-shrink-0">
+              <div className="w-8 h-8 rounded-xl bg-white border border-emerald-300 text-emerald-600 flex items-center justify-center flex-shrink-0">
                 <CreditCard size={16} />
               </div>
               <div>
-                <span className="text-xs font-bold text-slate-primary block leading-tight">Payment In</span>
-                <span className="text-[10px] text-blue-600">Receive from customer</span>
+                <span className="text-xs font-bold text-slate-900 block leading-tight">Payment In</span>
+                <span className="text-[10px] text-emerald-700">Receive from customer</span>
               </div>
             </button>
 
@@ -98,17 +98,17 @@ export const QuickAddSheet: React.FC = () => {
               }}
               className="w-full p-2.5 rounded-2xl bg-white hover:bg-slate-50 border border-slate-300 flex items-center gap-2.5 text-left transition-all active:scale-95 shadow-xs"
             >
-              <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center flex-shrink-0">
+              <div className="w-8 h-8 rounded-xl bg-white border border-amber-300 text-amber-600 flex items-center justify-center flex-shrink-0">
                 <RotateCcw size={15} />
               </div>
               <div>
-                <span className="text-xs font-bold text-slate-primary block leading-tight">Sale Return</span>
-                <span className="text-[10px] text-slate-secondary">Credit note</span>
+                <span className="text-xs font-bold text-slate-900 block leading-tight">Sale Return</span>
+                <span className="text-[10px] text-slate-500">Credit note</span>
               </div>
             </button>
           </div>
 
-          {/* MONEY OUT COLUMN */}
+          {/* MONEY OUT COLUMN (Red border only) */}
           <div className="space-y-2">
             <div className="flex items-center gap-1.5 px-1 text-rose-600 font-extrabold text-xs uppercase tracking-wide">
               <ArrowUpRight size={16} strokeWidth={2.5} />
@@ -121,13 +121,13 @@ export const QuickAddSheet: React.FC = () => {
                 closeAddSheet();
                 openInvoiceScreen('PURCHASE');
               }}
-              className="w-full p-2.5 rounded-2xl bg-white hover:bg-rose-50/60 border border-rose-400 flex items-center gap-2.5 text-left transition-all active:scale-95 shadow-xs"
+              className="w-full p-2.5 rounded-2xl bg-white hover:bg-rose-50/50 border-2 border-rose-500 flex items-center gap-2.5 text-left transition-all active:scale-95 shadow-xs"
             >
-              <div className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center flex-shrink-0">
+              <div className="w-8 h-8 rounded-xl bg-white border border-rose-300 text-rose-600 flex items-center justify-center flex-shrink-0">
                 <ShoppingCart size={16} />
               </div>
               <div>
-                <span className="text-xs font-bold text-slate-primary block leading-tight">Add Purchase</span>
+                <span className="text-xs font-bold text-slate-900 block leading-tight">Add Purchase</span>
                 <span className="text-[10px] text-rose-600">Supplier bill</span>
               </div>
             </button>
@@ -138,13 +138,13 @@ export const QuickAddSheet: React.FC = () => {
                 closeAddSheet();
                 openPaymentOut();
               }}
-              className="w-full p-2.5 rounded-2xl bg-white hover:bg-rose-50/60 border border-rose-400 flex items-center gap-2.5 text-left transition-all active:scale-95 shadow-xs"
+              className="w-full p-2.5 rounded-2xl bg-white hover:bg-rose-50/50 border-2 border-rose-500 flex items-center gap-2.5 text-left transition-all active:scale-95 shadow-xs"
             >
-              <div className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center flex-shrink-0">
+              <div className="w-8 h-8 rounded-xl bg-white border border-rose-300 text-rose-600 flex items-center justify-center flex-shrink-0">
                 <CreditCard size={16} />
               </div>
               <div>
-                <span className="text-xs font-bold text-slate-primary block leading-tight">Payment Out</span>
+                <span className="text-xs font-bold text-slate-900 block leading-tight">Payment Out</span>
                 <span className="text-[10px] text-rose-600">Pay to supplier</span>
               </div>
             </button>
@@ -155,29 +155,28 @@ export const QuickAddSheet: React.FC = () => {
                 closeAddSheet();
                 openExpenseModal();
               }}
-              className="w-full p-2.5 rounded-2xl bg-white hover:bg-amber-50/60 border border-amber-400 flex items-center gap-2.5 text-left transition-all active:scale-95 shadow-xs"
+              className="w-full p-2.5 rounded-2xl bg-white hover:bg-rose-50/50 border-2 border-rose-500 flex items-center gap-2.5 text-left transition-all active:scale-95 shadow-xs"
             >
-              <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center flex-shrink-0">
+              <div className="w-8 h-8 rounded-xl bg-white border border-rose-300 text-rose-600 flex items-center justify-center flex-shrink-0">
                 <PieChart size={16} />
               </div>
               <div>
-                <span className="text-xs font-bold text-slate-primary block leading-tight">Expense</span>
-                <span className="text-[10px] text-amber-600">Rent, salary, bills</span>
+                <span className="text-xs font-bold text-slate-900 block leading-tight">Expense</span>
+                <span className="text-[10px] text-rose-600">Rent, salary, bills</span>
               </div>
             </button>
           </div>
-
         </div>
 
-        {/* Transfer Button */}
-        <div className="pt-2 border-t border-border">
+        {/* Transfer Button (Blue border only) */}
+        <div className="pt-2 border-t border-slate-200">
           <button
             type="button"
             onClick={() => {
               closeAddSheet();
               openTransferModal();
             }}
-            className="w-full p-2.5 rounded-xl bg-surface-subtle hover:bg-slate-200/50 border border-border flex items-center justify-center gap-2 text-xs font-bold text-slate-primary"
+            className="w-full p-2.5 rounded-xl bg-white hover:bg-blue-50/50 border-2 border-blue-500 flex items-center justify-center gap-2 text-xs font-bold text-blue-700 transition-all active:scale-95"
           >
             <ArrowLeftRight size={15} />
             <span>Transfer Between Cash & Banks (Contra)</span>

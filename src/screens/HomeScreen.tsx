@@ -5,10 +5,8 @@ import {
   calculateTotalBalance,
   calculateReceivablesAndPayables,
   calculateTotalStockValue,
-  calculateProfitAndLoss,
 } from '../utils/accounting';
 import { formatINR, formatDate, formatTime } from '../utils/formatters';
-import { AmountDisplay } from '../components/common/AmountDisplay';
 import { EmptyState } from '../components/common/EmptyState';
 import {
   Wallet,
@@ -20,14 +18,15 @@ import {
   ChevronUp,
   AlertTriangle,
   ArrowRight,
-  TrendingUp,
   History,
   Receipt,
   ShoppingCart,
   CreditCard,
   PieChart,
-  RotateCcw,
   Scale,
+  Search,
+  CheckCircle2,
+  Clock3,
 } from 'lucide-react';
 
 export const HomeScreen: React.FC = () => {
@@ -39,43 +38,76 @@ export const HomeScreen: React.FC = () => {
   const invoices = useLedgerlyStore((state) => state.invoices);
   const period = useLedgerlyStore((state) => state.period);
   const language = useLedgerlyStore((state) => state.business.language);
-  const openInvoiceScreen = useLedgerlyStore((state) => state.openInvoiceScreen);
-  const openPaymentIn = useLedgerlyStore((state) => state.openPaymentIn);
-  const openPaymentOut = useLedgerlyStore((state) => state.openPaymentOut);
-  const openExpenseModal = useLedgerlyStore((state) => state.openExpenseModal);
   const openMoneyIn = useLedgerlyStore((state) => state.openMoneyIn);
   const openAccountLedger = useLedgerlyStore((state) => state.openAccountLedger);
   const openPartyLedger = useLedgerlyStore((state) => state.openPartyLedger);
   const openReconcileModal = useLedgerlyStore((state) => state.openReconcileModal);
   const openTransactionDetail = useLedgerlyStore((state) => state.openTransactionDetail);
   const setActiveTab = useLedgerlyStore((state) => state.setActiveTab);
-  const deleteTransaction = useLedgerlyStore((state) => state.deleteTransaction);
 
   const t = getTranslation(language);
 
   // Expanded Bank List Toggle
   const [isBankListExpanded, setIsBankListExpanded] = useState(false);
 
+  // Search & Filter state for homepage transaction list
+  const [searchQuery, setSearchQuery] = useState('');
+  const [txnFilter, setTxnFilter] = useState<'ALL' | 'SALE' | 'PURCHASE' | 'IN' | 'OUT' | 'EXPENSE'>('ALL');
+
   // Computations
   const { total, cashTotal, bankTotal, accountBalances } = calculateTotalBalance(accounts, transactions);
   const { toReceive, toPay } = calculateReceivablesAndPayables(parties, transactions, invoices);
   const { lowStockItems } = calculateTotalStockValue(items, stockMovements);
 
-  // Active period filter for Money In vs Out
+  // Active non-deleted transactions
   const activeTxns = transactions.filter((txn) => !txn.isDeleted);
-  const pnl = calculateProfitAndLoss(activeTxns, invoices);
-
-  // Recent 10 transactions
-  const recentTransactions = [...activeTxns]
-    .sort((a, b) => {
-      const cmp = b.date.localeCompare(a.date);
-      if (cmp !== 0) return cmp;
-      return (b.time || '').localeCompare(a.time || '');
-    })
-    .slice(0, 10);
 
   const partyMap = new Map(parties.map((p) => [p.id, p]));
   const accountMap = new Map(accounts.map((a) => [a.id, a]));
+  const invoiceMap = new Map(invoices.map((i) => [i.id, i]));
+
+  // Sorted all transactions (newest first)
+  const sortedTransactions = [...activeTxns].sort((a, b) => {
+    const cmp = b.date.localeCompare(a.date);
+    if (cmp !== 0) return cmp;
+    return (b.time || '').localeCompare(a.time || '');
+  });
+
+  // Filtered transactions based on search and type pill
+  const filteredTransactions = sortedTransactions.filter((txn) => {
+    const inv = txn.invoiceId ? invoiceMap.get(txn.invoiceId) : undefined;
+    const party = txn.partyId ? partyMap.get(txn.partyId) : undefined;
+    const partyName = party?.name || inv?.partyName || '';
+
+    // Type filter
+    if (txnFilter === 'SALE') {
+      if (inv?.type !== 'SALE') return false;
+    } else if (txnFilter === 'PURCHASE') {
+      if (inv?.type !== 'PURCHASE') return false;
+    } else if (txnFilter === 'IN') {
+      if (txn.type !== 'IN') return false;
+    } else if (txnFilter === 'OUT') {
+      if (txn.type !== 'OUT') return false;
+    } else if (txnFilter === 'EXPENSE') {
+      if (!(txn.type === 'OUT' && !txn.partyId)) return false;
+    }
+
+    // Search query filter
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      const matchParty = partyName.toLowerCase().includes(q);
+      const matchCategory = txn.category.toLowerCase().includes(q);
+      const matchNote = (txn.note || '').toLowerCase().includes(q);
+      const matchInvNo = (inv?.number || '').toLowerCase().includes(q);
+      const amountRupees = (txn.amount / 100).toString();
+      const matchAmount = amountRupees.includes(q);
+      if (!matchParty && !matchCategory && !matchNote && !matchInvNo && !matchAmount) {
+        return false;
+      }
+    }
+
+    return true;
+  });
 
   return (
     <div className="space-y-4 pb-28 pt-2">
@@ -83,17 +115,17 @@ export const HomeScreen: React.FC = () => {
       {lowStockItems.length > 0 && (
         <div
           onClick={() => setActiveTab('stock')}
-          className="bg-amber-50 border border-amber-200/80 rounded-2xl p-3 flex items-center justify-between cursor-pointer hover:bg-amber-100/60 transition-all shadow-xs"
+          className="bg-white border-2 border-amber-500 rounded-2xl p-3 flex items-center justify-between cursor-pointer hover:bg-amber-50/50 transition-all shadow-xs"
         >
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center flex-shrink-0">
-              <AlertTriangle size={16} />
+            <div className="w-8 h-8 rounded-xl bg-white border border-amber-400 text-amber-600 flex items-center justify-center flex-shrink-0">
+              <AlertTriangle size={18} />
             </div>
             <div>
-              <span className="text-xs font-bold text-amber-900 block leading-tight">
+              <span className="text-sm font-bold text-slate-900 block leading-tight">
                 {lowStockItems.length} {t.itemsBelowMin}
               </span>
-              <span className="text-[11px] text-amber-700">
+              <span className="text-xs text-amber-800">
                 {lowStockItems.map((i) => i.name).slice(0, 2).join(', ')}
                 {lowStockItems.length > 2 ? ` +${lowStockItems.length - 2} more` : ''}
               </span>
@@ -103,83 +135,74 @@ export const HomeScreen: React.FC = () => {
         </div>
       )}
 
-      {/* 2. TOP THREE BALANCE CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {/* Total Balance Card (Clean white with thin blue border) */}
-        <div className="p-4 rounded-card bg-white border border-blue-500 text-slate-primary shadow-card">
-          <div className="flex items-center justify-between text-blue-600 mb-1">
+      {/* 2. REORGANIZED COMPACT SUMMARY ROW (Clean White Cards with Colored Borders Only) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-3">
+        {/* Total Balance Card (Blue border) */}
+        <div className="p-3.5 rounded-2xl bg-white border-2 border-blue-500 text-slate-900 shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between text-blue-600 mb-0.5">
             <span className="text-xs font-bold uppercase tracking-wider">{t.totalBalance}</span>
-            <Wallet size={18} />
+            <Wallet size={16} />
           </div>
-          <div className="text-2xl sm:text-3xl font-extrabold tracking-tight tabular-nums mt-1 text-slate-primary">
+          <div className="text-lg sm:text-xl font-bold tracking-tight tabular-nums text-slate-900">
             {formatINR(total)}
           </div>
-          <span className="text-[11px] text-slate-secondary mt-1 block">Cash + all Bank accounts</span>
+          <span className="text-[11px] text-slate-500 mt-0.5 block truncate">Cash + Bank accounts</span>
         </div>
 
-        {/* Cash in Hand Card */}
+        {/* Cash in Hand Card (Neutral/Blue border) */}
         <div
           onClick={() => {
             const cash = accounts.find((a) => a.type === 'CASH');
             if (cash) openAccountLedger(cash.id);
           }}
-          className="p-4 rounded-card bg-white border border-border hover:border-blue-400 shadow-card transition-all cursor-pointer group"
+          className="p-3.5 rounded-2xl bg-white border border-slate-300 hover:border-blue-400 shadow-xs transition-all cursor-pointer group flex flex-col justify-between"
         >
-          <div className="flex items-center justify-between text-slate-secondary mb-1">
-            <span className="text-xs font-semibold uppercase tracking-wider">{t.cashInHand}</span>
-            <div className="w-7 h-7 rounded-lg bg-emerald-50 text-moneyIn flex items-center justify-center group-hover:scale-105 transition-transform">
-              <Coins size={16} />
-            </div>
+          <div className="flex items-center justify-between text-slate-600 mb-0.5">
+            <span className="text-xs font-bold uppercase tracking-wider">{t.cashInHand}</span>
+            <Coins size={16} className="text-emerald-600" />
           </div>
-          <div className="text-xl sm:text-2xl font-extrabold text-slate-primary tabular-nums mt-1">
+          <div className="text-lg sm:text-xl font-bold text-slate-900 tabular-nums">
             {formatINR(cashTotal)}
           </div>
-          <span className="text-[11px] text-slate-secondary mt-1 block">Physical shop cash</span>
+          <span className="text-[11px] text-slate-500 mt-0.5 block truncate">Physical shop cash</span>
         </div>
 
-        {/* Bank Balance Card (With Expandable Bank list) */}
-        <div className="p-4 rounded-card bg-white border border-border hover:border-blue-400 shadow-card transition-all">
+        {/* Bank Balance Card (Neutral/Blue border with Expandable List) */}
+        <div className="p-3.5 rounded-2xl bg-white border border-slate-300 hover:border-blue-400 shadow-xs transition-all flex flex-col justify-between">
           <div
             onClick={() => setIsBankListExpanded(!isBankListExpanded)}
-            className="flex items-center justify-between cursor-pointer text-slate-secondary"
+            className="flex items-center justify-between cursor-pointer text-slate-600 mb-0.5"
           >
-            <span className="text-xs font-semibold uppercase tracking-wider">{t.bankBalance}</span>
-            <div className="flex items-center gap-1.5">
-              <div className="w-7 h-7 rounded-lg bg-indigo-50 text-primary flex items-center justify-center">
-                <Building2 size={16} />
-              </div>
-              {isBankListExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            <span className="text-xs font-bold uppercase tracking-wider">{t.bankBalance}</span>
+            <div className="flex items-center gap-1">
+              <Building2 size={16} className="text-blue-600" />
+              {isBankListExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </div>
           </div>
 
           <div
             onClick={() => setIsBankListExpanded(!isBankListExpanded)}
-            className="text-xl sm:text-2xl font-extrabold text-slate-primary tabular-nums mt-1 cursor-pointer"
+            className="text-lg sm:text-xl font-bold text-slate-900 tabular-nums cursor-pointer"
           >
             {formatINR(bankTotal)}
           </div>
-          <span className="text-[11px] text-slate-secondary mt-1 block">
-            {accounts.filter((a) => a.type === 'BANK').length} accounts linked
+          <span className="text-[11px] text-slate-500 mt-0.5 block truncate">
+            {accounts.filter((a) => a.type === 'BANK').length} bank accounts
           </span>
 
-          {/* Expanded List of Bank Accounts */}
+          {/* Expandable Bank list */}
           {isBankListExpanded && (
-            <div className="mt-3 pt-3 border-t border-border space-y-2 animate-in fade-in duration-150">
+            <div className="mt-2 pt-2 border-t border-slate-200 space-y-1.5 animate-in fade-in duration-150">
               {accounts
                 .filter((a) => a.type === 'BANK')
                 .map((b) => (
                   <div
                     key={b.id}
                     onClick={() => openAccountLedger(b.id)}
-                    className="flex items-center justify-between py-1 px-2 rounded-xl hover:bg-surface-subtle cursor-pointer text-xs"
+                    className="flex items-center justify-between py-1 px-1.5 rounded-lg hover:bg-slate-50 cursor-pointer text-xs"
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 rounded-md bg-primary-light text-primary font-bold text-[10px] flex items-center justify-center">
-                        {(b.bankName || 'BNK').substring(0, 3)}
-                      </span>
-                      <span className="font-semibold text-slate-primary">{b.nickname}</span>
-                    </div>
-                    <span className="font-bold tabular-nums text-slate-primary">
+                    <span className="font-semibold text-slate-800 truncate">{b.nickname}</span>
+                    <span className="font-bold tabular-nums text-slate-900">
                       {formatINR(accountBalances[b.id] ?? b.openingBalance)}
                     </span>
                   </div>
@@ -188,195 +211,239 @@ export const HomeScreen: React.FC = () => {
               <button
                 type="button"
                 onClick={() => openReconcileModal()}
-                className="w-full mt-1 py-1.5 rounded-lg bg-surface-subtle hover:bg-slate-200/50 text-[11px] font-bold text-primary flex items-center justify-center gap-1"
+                className="w-full mt-1 py-1 rounded-lg bg-white border border-blue-200 hover:bg-blue-50/50 text-[11px] font-bold text-blue-700 flex items-center justify-center gap-1"
               >
                 <Scale size={12} /> Reconcile Passbook
               </button>
             </div>
           )}
         </div>
+
+        {/* To Receive Card (Green border only, white background) */}
+        <div
+          onClick={() => setActiveTab('parties')}
+          className="p-3.5 rounded-2xl bg-white border-2 border-emerald-500 shadow-xs hover:border-emerald-600 cursor-pointer transition-all flex flex-col justify-between"
+        >
+          <div className="flex items-center justify-between text-emerald-600 mb-0.5">
+            <span className="text-xs font-bold uppercase tracking-wider">{t.toReceive}</span>
+            <ArrowDownLeft size={16} strokeWidth={2.5} />
+          </div>
+          <div className="text-lg sm:text-xl font-bold text-slate-900 tabular-nums">
+            {formatINR(toReceive)}
+          </div>
+          <span className="text-[11px] text-emerald-700 mt-0.5 block truncate">Customers owe you</span>
+        </div>
+
+        {/* To Pay Card (Red border only, white background) */}
+        <div
+          onClick={() => setActiveTab('parties')}
+          className="p-3.5 rounded-2xl bg-white border-2 border-rose-500 shadow-xs hover:border-rose-600 cursor-pointer transition-all flex flex-col justify-between col-span-2 sm:col-span-1"
+        >
+          <div className="flex items-center justify-between text-rose-600 mb-0.5">
+            <span className="text-xs font-bold uppercase tracking-wider">{t.toPay}</span>
+            <ArrowUpRight size={16} strokeWidth={2.5} />
+          </div>
+          <div className="text-lg sm:text-xl font-bold text-slate-900 tabular-nums">
+            {formatINR(toPay)}
+          </div>
+          <span className="text-[11px] text-rose-700 mt-0.5 block truncate">You owe suppliers</span>
+        </div>
       </div>
 
-      {/* RESPONSIVE DASHBOARD LAYOUT: DESKTOP MULTI-COLUMN, MOBILE SINGLE COLUMN */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {/* LEFT / MAIN COLUMN: Cash Flow Summary & Recent Transactions */}
-        <div className="lg:col-span-8 space-y-4">
-          {/* 3. MONEY IN VS MONEY OUT PERIOD SUMMARY WITH PROGRESS BAR */}
-          <div className="p-4 rounded-card bg-white border border-border shadow-card">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <TrendingUp size={16} className="text-primary" />
-                <h3 className="text-sm font-bold text-slate-primary">Cash Flow Summary ({period})</h3>
-              </div>
-              <span className="text-xs font-semibold text-slate-secondary">
-                Net: <span className={pnl.netProfit >= 0 ? 'text-blue-700 font-bold' : 'text-rose-600 font-bold'}>{formatINR(pnl.netProfit)}</span>
-              </span>
+      {/* 3. MAIN FOCUS: HOMEPAGE TRANSACTION LIST (Full Width & Spacious) */}
+      <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4">
+        {/* Top Header with Title, Search, and Count */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-white border border-blue-400 text-blue-600 flex items-center justify-center font-bold">
+              <History size={16} />
             </div>
-
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div className="p-3 rounded-2xl bg-white border border-blue-500 shadow-xs">
-                <div className="flex items-center gap-1.5 text-blue-600 mb-1">
-                  <ArrowDownLeft size={16} strokeWidth={2.5} />
-                  <span className="text-xs font-bold uppercase">{t.receiveMoney}</span>
-                </div>
-                <div className="text-lg font-extrabold text-blue-700 tabular-nums">
-                  {formatINR(pnl.totalRevenue, { showSign: true, type: 'IN' })}
-                </div>
-              </div>
-
-              <div className="p-3 rounded-2xl bg-white border border-rose-500 shadow-xs">
-                <div className="flex items-center gap-1.5 text-rose-600 mb-1">
-                  <ArrowUpRight size={16} strokeWidth={2.5} />
-                  <span className="text-xs font-bold uppercase">{t.payMoney}</span>
-                </div>
-                <div className="text-lg font-extrabold text-rose-600 tabular-nums">
-                  {formatINR(pnl.totalExpense, { showSign: true, type: 'OUT' })}
-                </div>
-              </div>
+            <div>
+              <h2 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
+                {t.recentTransactions}
+              </h2>
+              <p className="text-xs text-slate-500">
+                Showing {filteredTransactions.length} of {activeTxns.length} transactions ({period})
+              </p>
             </div>
-
-            {/* Visual Ratio Bar Chart */}
-            {pnl.totalRevenue + pnl.totalExpense > 0 && (
-              <div className="w-full h-2.5 rounded-full bg-surface-subtle overflow-hidden flex">
-                <div
-                  className="bg-blue-600 h-full transition-all duration-300"
-                  style={{
-                    width: `${Math.round((pnl.totalRevenue / (pnl.totalRevenue + pnl.totalExpense)) * 100)}%`,
-                  }}
-                />
-                <div
-                  className="bg-rose-500 h-full transition-all duration-300"
-                  style={{
-                    width: `${Math.round((pnl.totalExpense / (pnl.totalRevenue + pnl.totalExpense)) * 100)}%`,
-                  }}
-                />
-              </div>
-            )}
           </div>
 
-          {/* 5. RECENT TRANSACTIONS (LAST 10) */}
-          <div className="p-4 rounded-card bg-white border border-border shadow-card">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <History size={16} className="text-primary" />
-                <h3 className="text-sm font-bold text-slate-primary">{t.recentTransactions}</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setActiveTab('reports')}
-                className="text-xs font-bold text-primary hover:text-primary-hover"
-              >
-                {t.seeAll}
-              </button>
-            </div>
+          {/* Search Box */}
+          <div className="relative w-full sm:w-64">
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search by party, invoice, amount..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-white border border-slate-300 text-xs text-slate-900 focus:outline-none focus:border-blue-500"
+            />
+          </div>
+        </div>
 
-            {recentTransactions.length === 0 ? (
-              <EmptyState
-                icon={History}
-                title={t.noTransactionsYet}
-                description="Record your cash or bank payments easily."
-                actionLabel={t.moneyIn}
-                actionVariant="moneyIn"
-                onAction={() => openMoneyIn()}
-              />
-            ) : (
-              <div className="divide-y divide-border">
-                {recentTransactions.map((txn) => {
-                  const party = txn.partyId ? partyMap.get(txn.partyId) : undefined;
-                  const account = accountMap.get(txn.accountId);
+        {/* Filter Pills (All, Sales, Purchases, Payment In, Payment Out, Expenses) */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
+          {[
+            { id: 'ALL', label: 'All Transactions' },
+            { id: 'SALE', label: 'Sales' },
+            { id: 'PURCHASE', label: 'Purchases' },
+            { id: 'IN', label: 'Payments In' },
+            { id: 'OUT', label: 'Payments Out' },
+            { id: 'EXPENSE', label: 'Expenses' },
+          ].map((pill) => (
+            <button
+              key={pill.id}
+              type="button"
+              onClick={() => setTxnFilter(pill.id as any)}
+              className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-all active:scale-95 ${
+                txnFilter === pill.id
+                  ? 'bg-white border-2 border-blue-600 text-blue-700 shadow-xs'
+                  : 'bg-white border border-slate-200 text-slate-600 hover:border-slate-300'
+              }`}
+            >
+              {pill.label}
+            </button>
+          ))}
+        </div>
 
-                  return (
+        {/* Transactions List */}
+        {filteredTransactions.length === 0 ? (
+          <EmptyState
+            icon={History}
+            title={searchQuery ? 'No matching transactions' : t.noTransactionsYet}
+            description={searchQuery ? 'Try clearing your search query or filter.' : 'Record your cash or bank payments easily.'}
+            actionLabel={t.moneyIn}
+            actionVariant="moneyIn"
+            onAction={() => openMoneyIn()}
+          />
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {filteredTransactions.map((txn) => {
+              const inv = txn.invoiceId ? invoiceMap.get(txn.invoiceId) : undefined;
+              const party = txn.partyId ? partyMap.get(txn.partyId) : undefined;
+              const account = accountMap.get(txn.accountId);
+
+              // Derive readable party name
+              const partyDisplayName = party?.name || inv?.partyName || txn.category || 'Direct Entry';
+
+              // Derive transaction type label & styling (White background with thin colored borders)
+              let typeLabel = txn.category;
+              let isPositive = txn.type === 'IN';
+              let badgeBorderClass = 'border-slate-300 text-slate-700';
+
+              if (inv) {
+                if (inv.type === 'SALE') {
+                  typeLabel = `Sale #${inv.number}`;
+                  isPositive = true;
+                  badgeBorderClass = 'border-emerald-500 text-emerald-700';
+                } else if (inv.type === 'PURCHASE') {
+                  typeLabel = `Purchase #${inv.number}`;
+                  isPositive = false;
+                  badgeBorderClass = 'border-rose-500 text-rose-700';
+                } else if (inv.type === 'SALE_RETURN') {
+                  typeLabel = `Sale Return #${inv.number}`;
+                  isPositive = false;
+                  badgeBorderClass = 'border-amber-500 text-amber-700';
+                } else if (inv.type === 'PURCHASE_RETURN') {
+                  typeLabel = `Purchase Return #${inv.number}`;
+                  isPositive = true;
+                  badgeBorderClass = 'border-emerald-500 text-emerald-700';
+                }
+              } else if (txn.type === 'IN') {
+                typeLabel = 'Payment In';
+                badgeBorderClass = 'border-emerald-500 text-emerald-700';
+              } else if (txn.type === 'OUT') {
+                typeLabel = txn.partyId ? 'Payment Out' : 'Business Expense';
+                badgeBorderClass = 'border-rose-500 text-rose-700';
+              } else {
+                typeLabel = 'Transfer';
+                badgeBorderClass = 'border-blue-500 text-blue-700';
+              }
+
+              // Status label if applicable
+              const statusLabel = inv?.status || 'COMPLETED';
+
+              return (
+                <div
+                  key={txn.id}
+                  onClick={() => openTransactionDetail(txn.id, txn.invoiceId)}
+                  className="py-3 px-2 sm:px-3 flex items-center justify-between group hover:bg-slate-50/80 rounded-xl transition-all cursor-pointer"
+                  title="Tap to open complete details immediately"
+                >
+                  {/* Left: Icon & Descriptive Info (Labels larger than amount) */}
+                  <div className="flex items-center gap-3 min-w-0 pr-2">
                     <div
-                      key={txn.id}
-                      onClick={() => openTransactionDetail(txn.id, txn.invoiceId)}
-                      className="py-3 flex items-center justify-between group hover:bg-surface-subtle/50 px-2 rounded-xl transition-colors cursor-pointer"
-                      title="Click to view complete details"
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-white border ${
+                        isPositive
+                          ? 'border-emerald-400 text-emerald-600'
+                          : txn.type === 'OUT'
+                          ? 'border-rose-400 text-rose-600'
+                          : 'border-blue-400 text-blue-600'
+                      }`}
                     >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                            txn.type === 'IN'
-                              ? 'bg-blue-50 text-blue-600 border border-blue-200'
-                              : txn.type === 'OUT'
-                              ? 'bg-rose-50 text-rose-600 border border-rose-200'
-                              : 'bg-primary-light text-primary border border-primary/20'
-                          }`}
-                        >
-                          {txn.type === 'IN' ? (
-                            <ArrowDownLeft size={20} strokeWidth={2.5} />
-                          ) : txn.type === 'OUT' ? (
-                            <ArrowUpRight size={20} strokeWidth={2.5} />
-                          ) : (
-                            <Coins size={18} />
-                          )}
-                        </div>
+                      {isPositive ? (
+                        <ArrowDownLeft size={20} strokeWidth={2.5} />
+                      ) : txn.type === 'OUT' ? (
+                        <ArrowUpRight size={20} strokeWidth={2.5} />
+                      ) : (
+                        <Coins size={18} />
+                      )}
+                    </div>
 
-                        <div className="flex flex-col">
-                          {/* Item/Party text slightly larger than amount and price text */}
-                          <span className="text-sm sm:text-base font-bold text-slate-primary leading-tight group-hover:text-primary transition-colors">
-                            {party?.name || txn.category}
+                    <div className="flex flex-col min-w-0">
+                      {/* Party Name / Description: Slightly larger than amount */}
+                      <span className="text-base sm:text-lg font-bold text-slate-900 leading-snug truncate group-hover:text-blue-600 transition-colors">
+                        {partyDisplayName}
+                      </span>
+
+                      {/* Metadata Row: Date, Type Badge (Border only), Account */}
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs text-slate-500 mt-0.5">
+                        <span className="font-medium text-slate-600">{formatDate(txn.date)}</span>
+                        <span>•</span>
+                        <span className={`px-2 py-0.2 rounded-md bg-white border font-bold text-[11px] ${badgeBorderClass}`}>
+                          {typeLabel}
+                        </span>
+                        {inv && (
+                          <span
+                            className={`px-1.5 py-0.2 rounded-md bg-white border text-[10px] font-bold ${
+                              inv.status === 'PAID'
+                                ? 'border-emerald-400 text-emerald-700'
+                                : inv.status === 'PARTIAL'
+                                ? 'border-amber-400 text-amber-700'
+                                : 'border-rose-400 text-rose-700'
+                            }`}
+                          >
+                            {statusLabel}
                           </span>
-                          <div className="flex items-center gap-1.5 text-[11px] text-slate-secondary mt-0.5">
-                            <span>{formatDate(txn.date)}</span>
-                            <span>•</span>
-                            <span>{txn.mode}</span>
-                            {account && <span>({account.nickname})</span>}
-                            <span className="text-[10px] text-primary underline ml-1">View Details</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-col items-end">
-                        <span className={`text-xs sm:text-sm font-semibold tabular-nums ${
-                          txn.type === 'IN' ? 'text-blue-700' : txn.type === 'OUT' ? 'text-rose-600' : 'text-slate-primary'
-                        }`}>
-                          {txn.type === 'IN' ? '+' : txn.type === 'OUT' ? '−' : ''}{formatINR(txn.amount)}
-                        </span>
-                        <span className="text-[10px] text-slate-secondary mt-0.5">
-                          {formatTime(txn.time)}
-                        </span>
+                        )}
+                        {account && (
+                          <span className="hidden sm:inline text-slate-400">
+                            via {account.nickname}
+                          </span>
+                        )}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
+                  </div>
 
-        {/* RIGHT COLUMN: To Receive & To Pay Dues & Shortcuts */}
-        <div className="lg:col-span-4 space-y-4">
-          {/* 4. TO RECEIVE & TO PAY CARDS (White background with thin red/blue border) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3">
-            {/* To Receive (Customers owe you) */}
-            <div
-              onClick={() => setActiveTab('parties')}
-              className="p-4 rounded-card bg-white border border-blue-500 shadow-card hover:border-blue-600 cursor-pointer transition-all"
-            >
-              <span className="text-xs font-bold text-blue-600 uppercase block mb-1">
-                {t.toReceive}
-              </span>
-              <div className="text-lg sm:text-xl font-extrabold text-blue-700 tabular-nums">
-                {formatINR(toReceive)}
-              </div>
-              <span className="text-[11px] text-slate-secondary mt-1 block">Customers owe you</span>
-            </div>
-
-            {/* To Pay (You owe suppliers) */}
-            <div
-              onClick={() => setActiveTab('parties')}
-              className="p-4 rounded-card bg-white border border-rose-500 shadow-card hover:border-rose-600 cursor-pointer transition-all"
-            >
-              <span className="text-xs font-bold text-rose-600 uppercase block mb-1">
-                {t.toPay}
-              </span>
-              <div className="text-lg sm:text-xl font-extrabold text-rose-600 tabular-nums">
-                {formatINR(toPay)}
-              </div>
-              <span className="text-[11px] text-slate-secondary mt-1 block">You owe suppliers</span>
-            </div>
+                  {/* Right: Amount & Time */}
+                  <div className="flex flex-col items-end flex-shrink-0">
+                    <span
+                      className={`text-sm sm:text-base font-bold tabular-nums tracking-tight ${
+                        isPositive ? 'text-emerald-700' : 'text-rose-600'
+                      }`}
+                    >
+                      {isPositive ? '+' : '−'}
+                      {formatINR(txn.amount)}
+                    </span>
+                    <span className="text-[11px] text-slate-400 mt-0.5">
+                      {formatTime(txn.time)}
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

@@ -68,15 +68,15 @@ export const AccountLedgerScreen: React.FC = () => {
           </div>
         </div>
 
-        {/* Large Balance Card */}
-        <div className="mt-3 p-4 rounded-2xl bg-gradient-to-r from-primary to-primary-hover text-white shadow-elevated">
-          <span className="text-xs font-semibold uppercase tracking-wider opacity-90 block">
+        {/* Large Balance Card (White background with thin blue border) */}
+        <div className="mt-3 p-4 rounded-2xl bg-white border-2 border-blue-500 text-slate-900 shadow-xs">
+          <span className="text-xs font-bold uppercase tracking-wider text-blue-600 block">
             Current Passbook Balance
           </span>
-          <span className="text-3xl font-extrabold tabular-nums block mt-1">
+          <span className="text-2xl sm:text-3xl font-extrabold tabular-nums block mt-1 text-slate-900">
             {formatINR(currentBalance)}
           </span>
-          <span className="text-[11px] opacity-80 mt-1 block">
+          <span className="text-xs text-slate-500 mt-1 block">
             Opening Balance: {formatINR(account.openingBalance)}
           </span>
         </div>
@@ -88,10 +88,10 @@ export const AccountLedgerScreen: React.FC = () => {
               key={mode}
               type="button"
               onClick={() => setFilterType(mode)}
-              className={`px-3 py-1 rounded-xl text-xs font-semibold border transition-all ${
+              className={`px-3 py-1 rounded-xl text-xs font-bold border transition-all ${
                 filterType === mode
-                  ? 'bg-primary text-white border-primary shadow-xs'
-                  : 'bg-surface-subtle text-slate-primary border-border hover:border-slate-muted'
+                  ? 'bg-white text-blue-700 border-2 border-blue-600 shadow-xs'
+                  : 'bg-white text-slate-700 border border-slate-300 hover:border-slate-400'
               }`}
             >
               {mode === 'ALL' ? 'All Passbook Entries' : mode === 'IN' ? 'Money In' : mode === 'OUT' ? 'Money Out' : 'Transfers'}
@@ -106,30 +106,30 @@ export const AccountLedgerScreen: React.FC = () => {
           <div
             key={entry.id}
             onClick={() => openTransactionDetail(entry.refId, entry.refId)}
-            className="p-3 bg-white rounded-2xl border border-border hover:border-blue-400 shadow-card flex items-center justify-between cursor-pointer group transition-all"
+            className="p-3 bg-white rounded-2xl border border-slate-200 hover:border-blue-400 shadow-xs flex items-center justify-between cursor-pointer group transition-all"
             title="Click to view complete transaction details"
           >
             <div className="flex flex-col">
-              <span className="text-sm font-bold text-slate-primary group-hover:text-primary transition-colors">
+              <span className="text-base font-bold text-slate-900 group-hover:text-primary transition-colors">
                 {entry.description}
               </span>
-              <span className="text-[11px] text-slate-secondary mt-0.5">
+              <span className="text-xs text-slate-500 mt-0.5">
                 {entry.date} {entry.time ? `• ${entry.time}` : ''} {entry.paymentMode ? `(${entry.paymentMode})` : ''}
               </span>
             </div>
 
             <div className="flex flex-col items-end">
               {entry.credit > 0 ? (
-                <span className="text-xs font-extrabold text-moneyIn tabular-nums">
+                <span className="text-sm font-bold text-emerald-700 tabular-nums">
                   +{formatINR(entry.credit)}
                 </span>
               ) : entry.debit > 0 ? (
-                <span className="text-xs font-extrabold text-moneyOut tabular-nums">
+                <span className="text-sm font-bold text-rose-600 tabular-nums">
                   −{formatINR(entry.debit)}
                 </span>
               ) : null}
 
-              <span className="text-[11px] font-semibold text-slate-secondary tabular-nums mt-0.5">
+              <span className="text-[11px] font-semibold text-slate-400 tabular-nums mt-0.5">
                 Bal: {formatINR(entry.runningBalance)}
               </span>
             </div>
@@ -137,12 +137,12 @@ export const AccountLedgerScreen: React.FC = () => {
         ))}
       </div>
 
-      {/* Sticky Bottom Actions */}
-      <div className="fixed bottom-0 left-0 right-0 max-w-2xl mx-auto bg-white border-t border-border p-3 flex gap-2 z-30">
+      {/* Sticky Bottom Actions (White backgrounds with colored borders only) */}
+      <div className="fixed bottom-0 left-0 right-0 max-w-2xl mx-auto bg-white border-t border-slate-200 p-3 flex gap-2 z-30">
         <button
           type="button"
           onClick={() => openMoneyIn()}
-          className="flex-1 h-12 rounded-button bg-moneyIn hover:bg-moneyIn-hover text-white font-bold text-xs flex items-center justify-center gap-1 shadow-sm active:scale-98"
+          className="flex-1 h-12 rounded-button bg-white hover:bg-emerald-50/50 text-emerald-700 border-2 border-emerald-500 font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs active:scale-98"
         >
           <ArrowDownLeft size={16} strokeWidth={2.5} />
           <span>+ Money In</span>
@@ -150,7 +150,7 @@ export const AccountLedgerScreen: React.FC = () => {
         <button
           type="button"
           onClick={() => openMoneyOut()}
-          className="flex-1 h-12 rounded-button bg-moneyOut hover:bg-moneyOut-hover text-white font-bold text-xs flex items-center justify-center gap-1 shadow-sm active:scale-98"
+          className="flex-1 h-12 rounded-button bg-white hover:bg-rose-50/50 text-rose-600 border-2 border-rose-500 font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs active:scale-98"
         >
           <ArrowUpRight size={16} strokeWidth={2.5} />
           <span>− Money Out</span>
@@ -158,8 +158,8 @@ export const AccountLedgerScreen: React.FC = () => {
         <button
           type="button"
           onClick={openTransferModal}
-          className="h-12 px-3 rounded-button bg-surface-subtle border border-border hover:bg-slate-200/50 text-slate-primary font-bold text-xs flex items-center justify-center gap-1"
-          title="Transfer"
+          className="h-12 px-3.5 rounded-button bg-white border-2 border-blue-500 hover:bg-blue-50/50 text-blue-700 font-bold text-xs flex items-center justify-center gap-1"
+          title="Transfer Between Accounts"
         >
           <ArrowLeftRight size={16} />
         </button>

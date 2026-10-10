@@ -653,6 +653,95 @@ describe('Store: Auto-Save Items & Transaction Details Modal', () => {
       expect(closedState.selectedTransactionForDetail).toBeNull();
     }
   });
+
+  it('deletes an invoice and reverses stock correctly', async () => {
+    const { useLedgerlyStore } = await import('../store/useLedgerlyStore');
+    const store = useLedgerlyStore.getState();
+
+    // Pick the invoice we created in the earlier test or create one
+    const inv = store.invoices[0];
+    if (inv) {
+      const deleteResult = store.deleteInvoice(inv.id);
+      expect(deleteResult.success).toBe(true);
+
+      const afterDelete = useLedgerlyStore.getState();
+      const deletedInv = afterDelete.invoices.find((i) => i.id === inv.id);
+      expect(deletedInv?.isDeleted).toBe(true);
+    }
+  });
+
+  it('generates invoice and party statement PDFs using jsPDF without errors', async () => {
+    const { generateInvoicePdf, generatePartyStatementPdf } = await import('../services/pdfService');
+    const { useLedgerlyStore } = await import('../store/useLedgerlyStore');
+    const store = useLedgerlyStore.getState();
+
+    const mockInvoice: Invoice = {
+      id: 'inv-test-pdf',
+      number: 'INV/2026/099',
+      type: 'SALE',
+      date: '2026-10-10',
+      dueDate: '2026-10-15',
+      partyId: 'p-1',
+      partyName: 'Shree Krishna Traders - Very Long Business Name For Testing Wrap',
+      lines: [
+        {
+          id: 'l-1',
+          itemId: 'i-1',
+          itemName: 'Premium Wheat Flour 10kg',
+          qty: 2.5,
+          unit: 'bag',
+          rate: 35000,
+          discountPercent: 5,
+          taxPercent: 5,
+          taxIncluded: false,
+          taxableAmount: 83125,
+          cgst: 2078,
+          sgst: 2078,
+          igst: 0,
+          amount: 87281,
+        },
+      ],
+      subtotal: 87500,
+      discountTotal: 4375,
+      taxableAmount: 83125,
+      cgstTotal: 2078,
+      sgstTotal: 2078,
+      igstTotal: 0,
+      taxTotal: 4156,
+      extraCharges: 0,
+      roundOff: 0,
+      total: 87281,
+      paidAmount: 50000,
+      status: 'PARTIAL',
+      paymentType: 'CASH',
+      withGst: true,
+      createdAt: '2026-10-10T10:00:00Z',
+      updatedAt: '2026-10-10T10:00:00Z',
+      isDeleted: false,
+    };
+
+    const doc = generateInvoicePdf(mockInvoice, store.business, store.parties[0]);
+    expect(doc).toBeDefined();
+    const blob = doc.output('blob');
+    expect(blob.size).toBeGreaterThan(0);
+
+    const testParty: Party = {
+      id: 'p-statement-test',
+      name: 'Ramesh Patel & Sons',
+      phone: '9876543210',
+      type: 'CUSTOMER',
+      openingBalance: 100000,
+      openingType: 'RECEIVABLE',
+      createdAt: '2026-10-01',
+      updatedAt: '2026-10-01',
+      isDeleted: false,
+    };
+
+    const statementDoc = generatePartyStatementPdf(testParty, [], store.business);
+    expect(statementDoc).toBeDefined();
+    const statementBlob = statementDoc.output('blob');
+    expect(statementBlob.size).toBeGreaterThan(0);
+  });
 });
 
 

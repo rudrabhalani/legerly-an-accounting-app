@@ -90,7 +90,7 @@ export function generateInvoicePdf(
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.setTextColor(slateColor[0], slateColor[1], slateColor[2]);
-  doc.text(invoice.partyName, 14, 61);
+  doc.text(invoice.partyName, 14, 61, { maxWidth: 95 });
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
@@ -171,7 +171,11 @@ export function generateInvoicePdf(
     columnStyles: colStyles,
   });
 
-  const finalY = (doc as any).lastAutoTable?.finalY || 140;
+  let finalY = (doc as any).lastAutoTable?.finalY || 140;
+  if (finalY + 65 > 280) {
+    doc.addPage();
+    finalY = 20;
+  }
 
   // Left column: Bank info, Amount in words, Terms
   const leftX = 14;
@@ -338,7 +342,7 @@ export function generatePartyStatementPdf(
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.setTextColor(15, 23, 42);
-  doc.text(`Party: ${party.name}`, 18, 39);
+  doc.text(`Party: ${party.name}`, 18, 39, { maxWidth: 90 });
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
@@ -384,7 +388,7 @@ export function generatePartyStatementPdf(
     },
     columnStyles: {
       0: { cellWidth: 22 },
-      1: { cellWidth: 80, overflow: 'linebreak' },
+      1: { cellWidth: 78, overflow: 'linebreak' },
       2: { cellWidth: 26, halign: 'right' },
       3: { cellWidth: 26, halign: 'right' },
       4: { cellWidth: 28, halign: 'right' },

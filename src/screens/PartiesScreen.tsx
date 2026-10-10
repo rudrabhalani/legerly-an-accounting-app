@@ -57,22 +57,22 @@ export const PartiesScreen: React.FC = () => {
 
   return (
     <div className="space-y-3 pb-24 pt-2">
-      {/* Total Receivable & Payable Summary Cards (White background with thin blue/red border) */}
+      {/* Total Receivable & Payable Summary Cards (White background with thin green/red border) */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="p-3.5 rounded-2xl bg-white border border-blue-500 shadow-xs flex flex-col">
-          <span className="text-[11px] font-bold text-blue-600 uppercase tracking-wide">
+        <div className="p-3.5 rounded-2xl bg-white border-2 border-emerald-500 shadow-xs flex flex-col">
+          <span className="text-[11px] font-bold text-emerald-600 uppercase tracking-wide">
             You'll Get (Receivable)
           </span>
-          <span className="text-lg sm:text-xl font-extrabold text-blue-700 tabular-nums mt-0.5">
+          <span className="text-lg sm:text-xl font-bold text-slate-900 tabular-nums mt-0.5">
             {formatINR(toReceive)}
           </span>
         </div>
 
-        <div className="p-3.5 rounded-2xl bg-white border border-rose-500 shadow-xs flex flex-col">
+        <div className="p-3.5 rounded-2xl bg-white border-2 border-rose-500 shadow-xs flex flex-col">
           <span className="text-[11px] font-bold text-rose-600 uppercase tracking-wide">
             You'll Give (Payable)
           </span>
-          <span className="text-lg sm:text-xl font-extrabold text-rose-600 tabular-nums mt-0.5">
+          <span className="text-lg sm:text-xl font-bold text-slate-900 tabular-nums mt-0.5">
             {formatINR(toPay)}
           </span>
         </div>
@@ -161,10 +161,10 @@ export const PartiesScreen: React.FC = () => {
                     {party.name.substring(0, 2).toUpperCase()}
                   </div>
                   <div>
-                    <h4 className="text-sm font-bold text-slate-primary leading-tight group-hover:text-primary transition-colors">
+                    <h4 className="text-base font-bold text-slate-900 leading-tight group-hover:text-primary transition-colors">
                       {party.name}
                     </h4>
-                    <span className="text-[11px] text-slate-secondary mt-0.5 block">
+                    <span className="text-xs text-slate-500 mt-0.5 block">
                       {party.phone ? `+91 ${party.phone}` : 'No phone'} • {party.type}
                     </span>
                   </div>
@@ -174,24 +174,24 @@ export const PartiesScreen: React.FC = () => {
                   <div className="flex flex-col items-end">
                     {net > 0 ? (
                       <>
-                        <span className="text-[10px] font-semibold text-moneyIn-dark uppercase">
+                        <span className="text-[10px] font-semibold text-emerald-700 uppercase">
                           {t.youWillGet}
                         </span>
-                        <span className="text-sm font-extrabold text-moneyIn tabular-nums">
+                        <span className="text-sm font-bold text-emerald-700 tabular-nums">
                           {formatINR(net)}
                         </span>
                       </>
                     ) : net < 0 ? (
                       <>
-                        <span className="text-[10px] font-semibold text-moneyOut-dark uppercase">
+                        <span className="text-[10px] font-semibold text-rose-600 uppercase">
                           {t.youWillGive}
                         </span>
-                        <span className="text-sm font-extrabold text-moneyOut tabular-nums">
+                        <span className="text-sm font-bold text-rose-600 tabular-nums">
                           {formatINR(Math.abs(net))}
                         </span>
                       </>
                     ) : (
-                      <span className="text-xs font-semibold text-slate-muted">Settled (₹0)</span>
+                      <span className="text-xs font-semibold text-slate-400">Settled (₹0)</span>
                     )}
                   </div>
                   <ChevronRight size={16} className="text-slate-muted group-hover:text-primary transition-colors" />
