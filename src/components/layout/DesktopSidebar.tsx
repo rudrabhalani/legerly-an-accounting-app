@@ -37,7 +37,7 @@ export const DesktopSidebar: React.FC = () => {
   const users = useLedgerlyStore((state) => state.users);
   const currentUserId = useLedgerlyStore((state) => state.currentUserId);
 
-  const currentUser = users.find((u) => u.id === currentUserId) || users[0];
+  const currentUser = users?.find((u) => u.id === currentUserId) || users?.[0] || { name: 'Admin', role: 'OWNER' };
 
   const [isSaleOpen, setIsSaleOpen] = useState(false);
   const [isPurchaseOpen, setIsPurchaseOpen] = useState(false);
@@ -313,14 +313,14 @@ export const DesktopSidebar: React.FC = () => {
         >
           <div className="flex items-center gap-2 min-w-0">
             <div className="w-7 h-7 rounded-full bg-blue-500/20 text-[#1A73E8] flex items-center justify-center font-bold text-xs flex-shrink-0">
-              {currentUser.name[0]}
+              {(currentUser?.name || 'A')[0]}
             </div>
             <div className="min-w-0">
               <span className="text-xs font-bold text-white block truncate leading-tight">
-                {currentUser.name}
+                {currentUser?.name || 'Admin'}
               </span>
               <span className="text-[10px] text-gray-400 block truncate">
-                {currentUser.role}
+                {currentUser?.role || 'OWNER'}
               </span>
             </div>
           </div>
