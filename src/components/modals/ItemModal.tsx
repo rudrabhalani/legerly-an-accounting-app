@@ -8,17 +8,24 @@ export const ItemModal: React.FC = () => {
   const isItemModalOpen = useLedgerlyStore((state) => state.isItemModalOpen);
   const closeItemModal = useLedgerlyStore((state) => state.closeItemModal);
   const addItem = useLedgerlyStore((state) => state.addItem);
+  const itemCategories = useLedgerlyStore((state) => state.itemCategories);
+  const storeUnits = useLedgerlyStore((state) => state.units);
 
   const [name, setName] = useState('');
   const [category, setCategory] = useState('General');
   const [unit, setUnit] = useState<UnitType>('pcs');
+  const [secondaryUnit, setSecondaryUnit] = useState('');
+  const [conversionFactor, setConversionFactor] = useState('1');
   const [salePriceStr, setSalePriceStr] = useState('');
   const [purchasePriceStr, setPurchasePriceStr] = useState('');
+  const [mrpStr, setMrpStr] = useState('');
   const [openingStockStr, setOpeningStockStr] = useState('');
   const [minStockStr, setMinStockStr] = useState('5');
   const [taxPercent, setTaxPercent] = useState('5');
   const [hsn, setHsn] = useState('');
   const [barcode, setBarcode] = useState('');
+  const [batchEnabled, setBatchEnabled] = useState(false);
+  const [serialEnabled, setSerialEnabled] = useState(false);
 
   if (!isItemModalOpen) return null;
 
@@ -30,6 +37,7 @@ export const ItemModal: React.FC = () => {
 
     const salePaise = salePriceStr ? rupeesToPaise(parseFloat(salePriceStr) || 0) : 0;
     const purchasePaise = purchasePriceStr ? rupeesToPaise(parseFloat(purchasePriceStr) || 0) : 0;
+    const mrpPaise = mrpStr ? rupeesToPaise(parseFloat(mrpStr) || 0) : undefined;
     const openingStock = parseInt(openingStockStr) || 0;
     const minStock = parseInt(minStockStr) || 0;
 
@@ -37,13 +45,18 @@ export const ItemModal: React.FC = () => {
       name: name.trim(),
       category: category.trim() || 'General',
       unit,
+      secondaryUnit: secondaryUnit.trim() || undefined,
+      conversionFactor: parseFloat(conversionFactor) || 1,
       salePrice: salePaise,
       purchasePrice: purchasePaise,
+      mrp: mrpPaise,
       openingStock,
       minStock,
       taxPercent: parseFloat(taxPercent) || 0,
       hsn: hsn.trim() || undefined,
       barcode: barcode.trim() || undefined,
+      batchEnabled,
+      serialEnabled,
     });
 
     closeItemModal();
@@ -89,17 +102,21 @@ export const ItemModal: React.FC = () => {
               <label className="block text-xs font-semibold text-slate-secondary mb-1">
                 Category
               </label>
-              <input
-                type="text"
-                placeholder="e.g. Groceries"
+              <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="w-full px-3 py-2 rounded-input bg-surface border border-border text-xs text-slate-primary focus:outline-none focus:border-primary"
-              />
+                className="w-full px-3 py-2 rounded-input bg-surface border border-border text-xs font-medium text-slate-primary focus:outline-none focus:border-primary"
+              >
+                {itemCategories.map((c) => (
+                  <option key={c.id} value={c.name}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-secondary mb-1">
-                Unit
+                Base Unit
               </label>
               <select
                 value={unit}
@@ -117,8 +134,8 @@ export const ItemModal: React.FC = () => {
             </div>
           </div>
 
-          {/* Pricing */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Pricing: Sale Price, Purchase Price, MRP */}
+          <div className="grid grid-cols-3 gap-2">
             <div>
               <label className="block text-xs font-semibold text-slate-secondary mb-1">
                 Sale Price (₹)
@@ -128,7 +145,7 @@ export const ItemModal: React.FC = () => {
                 placeholder="0"
                 value={salePriceStr}
                 onChange={(e) => setSalePriceStr(e.target.value)}
-                className="w-full px-3 py-2 rounded-input bg-surface border border-border text-sm font-bold text-moneyIn focus:outline-none focus:border-primary tabular-nums"
+                className="w-full px-3 py-2 rounded-input bg-surface border border-border text-xs font-bold text-moneyIn focus:outline-none focus:border-primary tabular-nums"
               />
             </div>
             <div>
@@ -140,7 +157,19 @@ export const ItemModal: React.FC = () => {
                 placeholder="0"
                 value={purchasePriceStr}
                 onChange={(e) => setPurchasePriceStr(e.target.value)}
-                className="w-full px-3 py-2 rounded-input bg-surface border border-border text-sm font-bold text-slate-primary focus:outline-none focus:border-primary tabular-nums"
+                className="w-full px-3 py-2 rounded-input bg-surface border border-border text-xs font-bold text-slate-primary focus:outline-none focus:border-primary tabular-nums"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-secondary mb-1">
+                MRP (₹)
+              </label>
+              <input
+                type="number"
+                placeholder="0"
+                value={mrpStr}
+                onChange={(e) => setMrpStr(e.target.value)}
+                className="w-full px-3 py-2 rounded-input bg-surface border border-border text-xs font-bold text-indigo-700 focus:outline-none focus:border-primary tabular-nums"
               />
             </div>
           </div>
@@ -226,6 +255,63 @@ export const ItemModal: React.FC = () => {
               >
                 <ScanBarcode size={18} />
               </button>
+            </div>
+          </div>
+
+          {/* Secondary Unit & Conversion Factor */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-secondary mb-1">
+                Secondary Unit (Optional)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Box, Cartoon"
+                value={secondaryUnit}
+                onChange={(e) => setSecondaryUnit(e.target.value)}
+                className="w-full px-3 py-2 rounded-input bg-surface border border-border text-xs text-slate-primary focus:outline-none focus:border-primary"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-secondary mb-1">
+                Conversion (1 Sec = ? Base)
+              </label>
+              <input
+                type="number"
+                placeholder="e.g. 10 (1 Box = 10 Pcs)"
+                value={conversionFactor}
+                onChange={(e) => setConversionFactor(e.target.value)}
+                className="w-full px-3 py-2 rounded-input bg-surface border border-border text-xs text-slate-primary focus:outline-none focus:border-primary"
+              />
+            </div>
+          </div>
+
+          {/* Vyapar Advanced Tracking: Batch & Serial Number Toggles */}
+          <div className="p-3 bg-surface-subtle rounded-xl border border-border space-y-2">
+            <span className="text-[11px] font-bold text-slate-secondary uppercase block">
+              Advanced Tracking
+            </span>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-slate-primary flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={batchEnabled}
+                  onChange={(e) => setBatchEnabled(e.target.checked)}
+                  className="rounded text-primary focus:ring-primary w-4 h-4"
+                />
+                <span>Batch & Expiry Date Tracking</span>
+              </label>
+            </div>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-slate-primary flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={serialEnabled}
+                  onChange={(e) => setSerialEnabled(e.target.checked)}
+                  className="rounded text-primary focus:ring-primary w-4 h-4"
+                />
+                <span>Serial / IMEI Number Tracking</span>
+              </label>
             </div>
           </div>
         </div>

@@ -39,6 +39,11 @@ import { PrintSettingsModal } from './components/modals/PrintSettingsModal';
 import { BackupRestoreModal } from './components/modals/BackupRestoreModal';
 import { ShareInvoiceModal } from './components/modals/ShareInvoiceModal';
 import { PeriodCashflowModal } from './components/modals/PeriodCashflowModal';
+import { GstrReportModal } from './components/modals/GstrReportModal';
+import { AgeingReportModal } from './components/modals/AgeingReportModal';
+import { CashFlowModal } from './components/modals/CashFlowModal';
+import { ChequesModal } from './components/modals/ChequesModal';
+import { LoanAccountsModal } from './components/modals/LoanAccountsModal';
 import { ToastSnackbar } from './components/common/ToastSnackbar';
 
 export function App() {
@@ -103,6 +108,11 @@ export function App() {
       <PrintSettingsModal />
       <BackupRestoreModal />
       <ShareInvoiceModal />
+      <GstrReportModal />
+      <AgeingReportModal />
+      <CashFlowModal />
+      <ChequesModal />
+      <LoanAccountsModal />
       <PartyLedgerScreen />
       <AccountLedgerScreen />
 

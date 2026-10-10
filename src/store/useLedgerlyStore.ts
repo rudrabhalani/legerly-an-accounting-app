@@ -26,13 +26,43 @@ import {
   PaymentMode,
   InvoiceType,
   PrintSettings,
+  TaxRate,
+  Unit,
+  ItemCategory,
+  ExpenseCategory,
+  OtherIncomeCategory,
+  PartyGroup,
+  Cheque,
+  ChequeStatus,
+  LoanAccount,
+  FirmSettings,
 } from '../types';
-
+import {
+  INITIAL_BUSINESS,
+  INITIAL_ACCOUNTS,
+  INITIAL_PARTIES,
+  INITIAL_ITEMS,
+  INITIAL_TRANSACTIONS,
+  INITIAL_INVOICES,
+  INITIAL_EXPENSES,
+  INITIAL_STOCK_MOVEMENTS,
+  INITIAL_USERS,
+  DEFAULT_TAX_RATES,
+  DEFAULT_UNITS,
+  DEFAULT_ITEM_CATEGORIES,
+  DEFAULT_EXPENSE_CATEGORIES,
+  DEFAULT_OTHER_INCOME_CATEGORIES,
+  DEFAULT_PARTY_GROUPS,
+  DEFAULT_FIRM_SETTINGS,
+} from '../data/seedData';
+import { getCurrentFinancialYear } from '../utils/financialYear';
+import { calculateAccountBalance, calculatePartyNetBalance } from '../utils/accounting';
+// Default print settings constant (exported for use in modals)
 export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
   paperSize: 'A4',
   orientation: 'portrait',
   margins: 10,
-  shopName: 'Shree Sweet',
+  shopName: '',
   address: '',
   phone: '',
   gstin: '',
@@ -51,19 +81,6 @@ export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
   selectedPrinterName: 'Default System Printer',
   messageTemplate: 'Dear {customer_name}, here is your Bill #{bill_no} of ₹{total} from {shop_name}. Balance due: ₹{balance}. Thank you!',
 };
-import {
-  INITIAL_BUSINESS,
-  INITIAL_ACCOUNTS,
-  INITIAL_PARTIES,
-  INITIAL_ITEMS,
-  INITIAL_TRANSACTIONS,
-  INITIAL_INVOICES,
-  INITIAL_EXPENSES,
-  INITIAL_STOCK_MOVEMENTS,
-  INITIAL_USERS,
-} from '../data/seedData';
-import { getCurrentFinancialYear } from '../utils/financialYear';
-import { calculateAccountBalance, calculatePartyNetBalance } from '../utils/accounting';
 
 interface PendingUserInvite {
   name: string;
@@ -87,6 +104,17 @@ interface LedgerlyState {
   currentUserId: string | null;
   pendingInvite: PendingUserInvite | null;
 
+  // VYAPAR-GRADE MASTER DATA
+  taxRates: TaxRate[];
+  units: Unit[];
+  itemCategories: ItemCategory[];
+  expenseCategories: ExpenseCategory[];
+  otherIncomeCategories: OtherIncomeCategory[];
+  partyGroups: PartyGroup[];
+  cheques: Cheque[];
+  loanAccounts: LoanAccount[];
+  firmSettings: FirmSettings;
+
   // Financial Year
   financialYears: string[];
   activeFinancialYear: string;
@@ -97,13 +125,14 @@ interface LedgerlyState {
   lastDeletedTransaction: Transaction | null;
   activeTab: 'home' | 'bankLedger' | 'parties' | 'stock' | 'reports';
 
+
   // Modals & Screens
   isMoneyInOpen: boolean;
   isMoneyOutOpen: boolean;
   isAddSheetOpen: boolean;
   isInvoiceModalOpen: boolean; // Legacy/Quick trigger
   isInvoiceScreenOpen: boolean; // Full Vyapar-style Sale/Purchase screen
-  invoiceScreenMode: 'SALE' | 'PURCHASE' | 'SALE_RETURN' | 'PURCHASE_RETURN';
+  invoiceScreenMode: InvoiceType;
   activeInvoiceToEdit: Invoice | null;
   isPaymentInOpen: boolean;
   isPaymentOutOpen: boolean;
@@ -155,6 +184,27 @@ interface LedgerlyState {
   openShareInvoiceModal: (invoice: Invoice) => void;
   closeShareInvoiceModal: () => void;
 
+  // Vyapar Feature Modals
+  isChequesModalOpen: boolean;
+  openChequesModal: () => void;
+  closeChequesModal: () => void;
+
+  isGstrReportModalOpen: boolean;
+  openGstrReportModal: () => void;
+  closeGstrReportModal: () => void;
+
+  isAgeingReportModalOpen: boolean;
+  openAgeingReportModal: () => void;
+  closeAgeingReportModal: () => void;
+
+  isCashFlowModalOpen: boolean;
+  openCashFlowModal: () => void;
+  closeCashFlowModal: () => void;
+
+  isLoanAccountsModalOpen: boolean;
+  openLoanAccountsModal: () => void;
+  closeLoanAccountsModal: () => void;
+
   // Security
   isLocked: boolean;
 
@@ -177,7 +227,7 @@ interface LedgerlyState {
   deleteFinancialYear: (fy: string, confirmBizName: string) => { success: boolean; error?: string };
 
   // Screen & Modal Actions
-  openInvoiceScreen: (mode?: 'SALE' | 'PURCHASE' | 'SALE_RETURN' | 'PURCHASE_RETURN', invoiceToEdit?: Invoice) => void;
+  openInvoiceScreen: (mode?: InvoiceType, invoiceToEdit?: Invoice) => void;
   closeInvoiceScreen: () => void;
   openPaymentIn: (partyId?: string) => void;
   closePaymentIn: () => void;
@@ -298,6 +348,22 @@ interface LedgerlyState {
     stockWarnings: string[];
   };
   deleteInvoice: (id: string) => { success: boolean; error?: string };
+  // Vyapar Master Data Actions
+  addCheque: (cheque: Omit<Cheque, 'id' | 'createdAt' | 'updatedAt' | 'isDeleted'>) => Cheque;
+  updateChequeStatus: (id: string, status: ChequeStatus) => void;
+  deleteCheque: (id: string) => void;
+
+  addLoanAccount: (loan: Omit<LoanAccount, 'id' | 'createdAt' | 'isDeleted'>) => LoanAccount;
+  recordLoanEmi: (loanId: string, amountPaise: number, accountId: string, date: string) => void;
+  deleteLoanAccount: (id: string) => void;
+
+  updateFirmSettings: (updates: Partial<FirmSettings>) => void;
+  addTaxRate: (rate: Omit<TaxRate, 'id' | 'isDeleted'>) => TaxRate;
+  deleteTaxRate: (id: string) => void;
+  addItemCategory: (name: string) => ItemCategory;
+  addUnit: (name: string, abbreviation: string, isBaseUnit?: boolean) => Unit;
+  addPartyGroup: (name: string, description?: string) => PartyGroup;
+  addExpenseCategory: (name: string) => ExpenseCategory;
   addInvoice: (invoice: Omit<Invoice, 'id' | 'createdAt' | 'updatedAt' | 'isDeleted'>) => Invoice;
 
   // Backup & Restore
@@ -320,6 +386,17 @@ export const useLedgerlyStore = create<LedgerlyState>()(
       users: INITIAL_USERS,
       currentUserId: null,
       pendingInvite: null,
+
+      // Vyapar Master Data State
+      taxRates: DEFAULT_TAX_RATES,
+      units: DEFAULT_UNITS,
+      itemCategories: DEFAULT_ITEM_CATEGORIES,
+      expenseCategories: DEFAULT_EXPENSE_CATEGORIES,
+      otherIncomeCategories: DEFAULT_OTHER_INCOME_CATEGORIES,
+      partyGroups: DEFAULT_PARTY_GROUPS,
+      cheques: [],
+      loanAccounts: [],
+      firmSettings: DEFAULT_FIRM_SETTINGS,
 
       financialYears: [getCurrentFinancialYear()],
       activeFinancialYear: getCurrentFinancialYear(),
@@ -390,6 +467,27 @@ export const useLedgerlyStore = create<LedgerlyState>()(
         set({ isShareInvoiceModalOpen: true, selectedInvoiceForShare: invoice }),
       closeShareInvoiceModal: () =>
         set({ isShareInvoiceModalOpen: false, selectedInvoiceForShare: null }),
+
+      // Vyapar Feature Modals
+      isChequesModalOpen: false,
+      openChequesModal: () => set({ isChequesModalOpen: true }),
+      closeChequesModal: () => set({ isChequesModalOpen: false }),
+
+      isGstrReportModalOpen: false,
+      openGstrReportModal: () => set({ isGstrReportModalOpen: true }),
+      closeGstrReportModal: () => set({ isGstrReportModalOpen: false }),
+
+      isAgeingReportModalOpen: false,
+      openAgeingReportModal: () => set({ isAgeingReportModalOpen: true }),
+      closeAgeingReportModal: () => set({ isAgeingReportModalOpen: false }),
+
+      isCashFlowModalOpen: false,
+      openCashFlowModal: () => set({ isCashFlowModalOpen: true }),
+      closeCashFlowModal: () => set({ isCashFlowModalOpen: false }),
+
+      isLoanAccountsModalOpen: false,
+      openLoanAccountsModal: () => set({ isLoanAccountsModalOpen: true }),
+      closeLoanAccountsModal: () => set({ isLoanAccountsModalOpen: false }),
 
       isLocked: false,
 
@@ -1632,10 +1730,142 @@ export const useLedgerlyStore = create<LedgerlyState>()(
         return res.invoice;
       },
 
+      // Vyapar Master Data Actions Implementation
+      addCheque: (data) => {
+        const now = new Date().toISOString();
+        const newCheque: Cheque = {
+          ...data,
+          id: `chq-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          createdAt: now,
+          updatedAt: now,
+          isDeleted: false,
+        };
+        set((state) => ({ cheques: [newCheque, ...state.cheques] }));
+        return newCheque;
+      },
+
+      updateChequeStatus: (id, status) => {
+        const now = new Date().toISOString();
+        set((state) => ({
+          cheques: state.cheques.map((c) => (c.id === id ? { ...c, status, updatedAt: now } : c)),
+        }));
+      },
+
+      deleteCheque: (id) => {
+        set((state) => ({
+          cheques: state.cheques.map((c) => (c.id === id ? { ...c, isDeleted: true } : c)),
+        }));
+      },
+
+      addLoanAccount: (data) => {
+        const now = new Date().toISOString();
+        const newLoan: LoanAccount = {
+          ...data,
+          id: `loan-${Date.now()}`,
+          outstandingAmount: data.loanAmount,
+          createdAt: now,
+          isDeleted: false,
+        };
+        set((state) => ({ loanAccounts: [newLoan, ...state.loanAccounts] }));
+        return newLoan;
+      },
+
+      recordLoanEmi: (loanId, amountPaise, accountId, date) => {
+        const state = get();
+        const loan = state.loanAccounts.find((l) => l.id === loanId);
+        if (!loan) return;
+        get().addTransaction({
+          type: 'OUT',
+          amount: amountPaise,
+          accountId,
+          mode: 'NEFT_RTGS' as PaymentMode,
+          category: 'Loan EMI',
+          date,
+          time: new Date().toTimeString().slice(0, 5),
+          note: `Loan EMI for ${loan.lenderName}`,
+        });
+        set((s) => ({
+          loanAccounts: s.loanAccounts.map((l) =>
+            l.id === loanId ? { ...l, outstandingAmount: Math.max(0, l.outstandingAmount - amountPaise) } : l
+          ),
+        }));
+      },
+
+      deleteLoanAccount: (id) => {
+        set((state) => ({
+          loanAccounts: state.loanAccounts.map((l) => (l.id === id ? { ...l, isDeleted: true } : l)),
+        }));
+      },
+
+      updateFirmSettings: (updates) => {
+        set((state) => ({
+          firmSettings: { ...state.firmSettings, ...updates },
+        }));
+      },
+
+      addTaxRate: (data) => {
+        const newRate: TaxRate = {
+          ...data,
+          id: `tax-${Date.now()}`,
+          isDeleted: false,
+        };
+        set((state) => ({ taxRates: [...state.taxRates, newRate] }));
+        return newRate;
+      },
+
+      deleteTaxRate: (id) => {
+        set((state) => ({
+          taxRates: state.taxRates.map((r) => (r.id === id ? { ...r, isDeleted: true } : r)),
+        }));
+      },
+
+      addItemCategory: (name) => {
+        const newCat: ItemCategory = {
+          id: `cat-${Date.now()}`,
+          name,
+          isDeleted: false,
+        };
+        set((state) => ({ itemCategories: [...state.itemCategories, newCat] }));
+        return newCat;
+      },
+
+      addUnit: (name, abbreviation, isBaseUnit = true) => {
+        const newUnit: Unit = {
+          id: `unit-${Date.now()}`,
+          name,
+          abbreviation,
+          isBaseUnit,
+          isDeleted: false,
+        };
+        set((state) => ({ units: [...state.units, newUnit] }));
+        return newUnit;
+      },
+
+      addPartyGroup: (name, description) => {
+        const newGrp: PartyGroup = {
+          id: `grp-${Date.now()}`,
+          name,
+          description,
+          isDeleted: false,
+        };
+        set((state) => ({ partyGroups: [...state.partyGroups, newGrp] }));
+        return newGrp;
+      },
+
+      addExpenseCategory: (name) => {
+        const newCat: ExpenseCategory = {
+          id: `exp-${Date.now()}`,
+          name,
+          isDeleted: false,
+        };
+        set((state) => ({ expenseCategories: [...state.expenseCategories, newCat] }));
+        return newCat;
+      },
+
       exportBackupJson: () => {
         const state = get();
         const backup = {
-          version: '2.5.0',
+          version: '3.0.0',
           exportedAt: new Date().toISOString(),
           business: state.business,
           accounts: state.accounts,
@@ -1649,6 +1879,16 @@ export const useLedgerlyStore = create<LedgerlyState>()(
           stockMovements: state.stockMovements,
           users: state.users,
           auditLogs: state.auditLogs,
+          taxRates: state.taxRates,
+          units: state.units,
+          itemCategories: state.itemCategories,
+          expenseCategories: state.expenseCategories,
+          otherIncomeCategories: state.otherIncomeCategories,
+          partyGroups: state.partyGroups,
+          cheques: state.cheques,
+          loanAccounts: state.loanAccounts,
+          firmSettings: state.firmSettings,
+          printSettings: state.printSettings,
         };
         return JSON.stringify(backup, null, 2);
       },
@@ -1672,6 +1912,16 @@ export const useLedgerlyStore = create<LedgerlyState>()(
             stockMovements: parsed.stockMovements || [],
             users: parsed.users || [],
             auditLogs: parsed.auditLogs || [],
+            taxRates: parsed.taxRates || DEFAULT_TAX_RATES,
+            units: parsed.units || DEFAULT_UNITS,
+            itemCategories: parsed.itemCategories || DEFAULT_ITEM_CATEGORIES,
+            expenseCategories: parsed.expenseCategories || DEFAULT_EXPENSE_CATEGORIES,
+            otherIncomeCategories: parsed.otherIncomeCategories || DEFAULT_OTHER_INCOME_CATEGORIES,
+            partyGroups: parsed.partyGroups || DEFAULT_PARTY_GROUPS,
+            cheques: parsed.cheques || [],
+            loanAccounts: parsed.loanAccounts || [],
+            firmSettings: parsed.firmSettings || DEFAULT_FIRM_SETTINGS,
+            printSettings: parsed.printSettings || DEFAULT_PRINT_SETTINGS,
           });
           return true;
         } catch {
@@ -1695,6 +1945,16 @@ export const useLedgerlyStore = create<LedgerlyState>()(
         users: state.users,
         currentUserId: state.currentUserId,
         auditLogs: state.auditLogs,
+        taxRates: state.taxRates,
+        units: state.units,
+        itemCategories: state.itemCategories,
+        expenseCategories: state.expenseCategories,
+        otherIncomeCategories: state.otherIncomeCategories,
+        partyGroups: state.partyGroups,
+        cheques: state.cheques,
+        loanAccounts: state.loanAccounts,
+        firmSettings: state.firmSettings,
+        printSettings: state.printSettings,
       }),
     }
   )

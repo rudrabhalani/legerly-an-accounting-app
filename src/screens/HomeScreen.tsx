@@ -39,6 +39,7 @@ import {
   Boxes,
   Percent,
   Database,
+  Clock,
 } from 'lucide-react';
 
 export type HomeTimePeriod =
@@ -68,6 +69,11 @@ export const HomeScreen: React.FC = () => {
   const openBillWisePnl = useLedgerlyStore((state) => state.openBillWisePnl);
   const openPrintSettings = useLedgerlyStore((state) => state.openPrintSettings);
   const openBackupModal = useLedgerlyStore((state) => state.openBackupModal);
+  const openChequesModal = useLedgerlyStore((state) => state.openChequesModal);
+  const openGstrReportModal = useLedgerlyStore((state) => state.openGstrReportModal);
+  const openAgeingReportModal = useLedgerlyStore((state) => state.openAgeingReportModal);
+  const openCashFlowModal = useLedgerlyStore((state) => state.openCashFlowModal);
+  const openLoanAccountsModal = useLedgerlyStore((state) => state.openLoanAccountsModal);
   const setActiveTab = useLedgerlyStore((state) => state.setActiveTab);
 
   const t = getTranslation(business.language);
@@ -275,6 +281,29 @@ export const HomeScreen: React.FC = () => {
           <ArrowRight size={13} />
         </div>
       </div>
+      {/* OVERDUE RECEIVABLES ALERT */}
+      {toReceive > 0 && (
+        <div
+          onClick={openAgeingReportModal}
+          className="bg-white dark:bg-slate-900 border-2 border-rose-400 rounded-2xl p-3 flex items-center justify-between cursor-pointer hover:bg-rose-50/40 dark:hover:bg-rose-950/20 transition-all shadow-xs"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 border border-rose-400 text-rose-600 dark:text-rose-400 flex items-center justify-center flex-shrink-0">
+              <Clock size={18} />
+            </div>
+            <div>
+              <span className="text-sm font-bold text-slate-900 dark:text-slate-100 block leading-tight">
+                Pending Customer Receivables: {formatINR(toReceive)}
+              </span>
+              <span className="text-xs text-rose-700 dark:text-rose-400">
+                Tap to view Ageing Analysis & send WhatsApp payment reminders
+              </span>
+            </div>
+          </div>
+          <ArrowRight size={16} className="text-rose-700 dark:text-rose-400 flex-shrink-0" />
+        </div>
+      )}
+
       {/* LOW STOCK ALERT (Amber Banner if any items below min) */}
       {lowStockItems.length > 0 && (
         <div
@@ -308,7 +337,7 @@ export const HomeScreen: React.FC = () => {
               <Calendar size={16} />
             </div>
             <div className="min-w-0">
-              <h2 className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100 leading-tight truncate">
+              <h2 className="text-sm sm:base font-bold text-slate-900 dark:text-slate-100 leading-tight truncate">
                 {fullDisplayDate}
               </h2>
               <span className="text-[11px] text-slate-500 dark:text-slate-400 block truncate">
@@ -478,56 +507,52 @@ export const HomeScreen: React.FC = () => {
               action: openBillWisePnl,
             },
             {
+              id: 'gstr-report',
+              title: 'GST Returns',
+              subtitle: 'GSTR-1 & GSTR-3B',
+              icon: Percent,
+              color: 'text-teal-600 bg-teal-50 border-teal-200',
+              action: openGstrReportModal,
+            },
+            {
+              id: 'party-ageing',
+              title: 'Party Ageing',
+              subtitle: 'Overdue Dues & Reminders',
+              icon: Clock,
+              color: 'text-amber-600 bg-amber-50 border-amber-200',
+              action: openAgeingReportModal,
+            },
+            {
+              id: 'cash-flow',
+              title: 'Cash Flow',
+              subtitle: 'Inflows & Outflows',
+              icon: TrendingUp,
+              color: 'text-teal-600 bg-teal-50 border-teal-200',
+              action: openCashFlowModal,
+            },
+            {
+              id: 'cheques',
+              title: 'Cheque Register',
+              subtitle: 'Received & Issued Cheques',
+              icon: CreditCard,
+              color: 'text-cyan-600 bg-cyan-50 border-cyan-200',
+              action: openChequesModal,
+            },
+            {
+              id: 'loans',
+              title: 'Loan Accounts',
+              subtitle: 'EMI & Liabilities',
+              icon: Building2,
+              color: 'text-orange-600 bg-orange-50 border-orange-200',
+              action: openLoanAccountsModal,
+            },
+            {
               id: 'print-settings',
               title: 'Print Settings',
-              subtitle: 'A4 / POS Thermal & Preview',
+              subtitle: 'A4 / POS Thermal & Live',
               icon: Printer,
               color: 'text-amber-600 bg-amber-50 border-amber-200',
               action: openPrintSettings,
-            },
-            {
-              id: 'party-ledger',
-              title: 'Party Ledger',
-              subtitle: 'Khata & Running Balance',
-              icon: Users,
-              color: 'text-purple-600 bg-purple-50 border-purple-200',
-              action: () => setActiveTab('parties'),
-            },
-            {
-              id: 'sales-register',
-              title: 'Sales Register',
-              subtitle: 'Invoices & Returns',
-              icon: Receipt,
-              color: 'text-emerald-600 bg-emerald-50 border-emerald-200',
-              action: () => setActiveTab('reports'),
-            },
-            {
-              id: 'purchase-register',
-              title: 'Purchase Register',
-              subtitle: 'Bills & Inward Stock',
-              icon: ShoppingCart,
-              color: 'text-rose-600 bg-rose-50 border-rose-200',
-              action: () => setActiveTab('reports'),
-            },
-            {
-              id: 'expenses',
-              title: 'Expenses',
-              subtitle: 'Tea, Rent, Fuel & Petty',
-              icon: CreditCard,
-              color: 'text-rose-600 bg-rose-50 border-rose-200',
-              action: openExpenseModal,
-            },
-            {
-              id: 'cash-book',
-              title: 'Cash Book',
-              subtitle: 'Cash in Hand Ledger',
-              icon: Wallet,
-              color: 'text-blue-600 bg-blue-50 border-blue-200',
-              action: () => {
-                const cashAcc = accounts.find((a) => a.type === 'CASH');
-                if (cashAcc) openAccountLedger(cashAcc.id);
-                else openAccountLedger(accounts[0]?.id || '');
-              },
             },
             {
               id: 'stock-report',
@@ -538,12 +563,12 @@ export const HomeScreen: React.FC = () => {
               action: () => setActiveTab('stock'),
             },
             {
-              id: 'gst-report',
-              title: 'GST Report',
-              subtitle: 'GSTR-1 & Summary',
-              icon: Percent,
-              color: 'text-teal-600 bg-teal-50 border-teal-200',
-              action: () => setActiveTab('reports'),
+              id: 'party-ledger',
+              title: 'Party Ledger',
+              subtitle: 'Khata & Running Balance',
+              icon: Users,
+              color: 'text-purple-600 bg-purple-50 border-purple-200',
+              action: () => setActiveTab('parties'),
             },
             {
               id: 'backup-restore',

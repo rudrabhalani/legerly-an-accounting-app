@@ -10,11 +10,19 @@ export const PartyModal: React.FC = () => {
   const closePartyModal = useLedgerlyStore((state) => state.closePartyModal);
   const addParty = useLedgerlyStore((state) => state.addParty);
 
+  const partyGroups = useLedgerlyStore((state) => state.partyGroups);
+
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [type, setType] = useState<PartyType>('CUSTOMER');
   const [address, setAddress] = useState('');
+  const [shippingAddress, setShippingAddress] = useState('');
   const [gstin, setGstin] = useState('');
+  const [pan, setPan] = useState('');
+  const [creditLimitStr, setCreditLimitStr] = useState('');
+  const [creditDaysStr, setCreditDaysStr] = useState('30');
+  const [groupId, setGroupId] = useState('');
   const [openingBalanceStr, setOpeningBalanceStr] = useState('');
   const [openingType, setOpeningType] = useState<OpeningBalanceType>('RECEIVABLE');
 
@@ -35,13 +43,21 @@ export const PartyModal: React.FC = () => {
     }
 
     const openingPaise = openingBalanceStr ? rupeesToPaise(parseFloat(openingBalanceStr) || 0) : 0;
+    const creditLimitPaise = creditLimitStr ? rupeesToPaise(parseFloat(creditLimitStr) || 0) : undefined;
+    const creditDays = creditDaysStr ? parseInt(creditDaysStr) : undefined;
 
     addParty({
       name: name.trim(),
       phone: phone.trim(),
+      email: email.trim() || undefined,
       type,
       address: address.trim() || undefined,
+      shippingAddress: shippingAddress.trim() || undefined,
       gstin: gstin.trim().toUpperCase() || undefined,
+      pan: pan.trim().toUpperCase() || undefined,
+      creditLimit: creditLimitPaise,
+      creditDays,
+      groupId: groupId || undefined,
       openingBalance: openingPaise,
       openingType,
     });
@@ -49,8 +65,14 @@ export const PartyModal: React.FC = () => {
     closePartyModal();
     setName('');
     setPhone('');
+    setEmail('');
     setAddress('');
+    setShippingAddress('');
     setGstin('');
+    setPan('');
+    setCreditLimitStr('');
+    setCreditDaysStr('30');
+    setGroupId('');
     setOpeningBalanceStr('');
   };
 
@@ -175,10 +197,10 @@ export const PartyModal: React.FC = () => {
             </div>
           </div>
 
-          {/* Address & GSTIN */}
+          {/* Address & Shipping Address */}
           <div>
             <label className="block text-xs font-semibold text-slate-secondary mb-1">
-              Address (Optional)
+              Billing Address (Optional)
             </label>
             <input
               type="text"
@@ -191,15 +213,104 @@ export const PartyModal: React.FC = () => {
 
           <div>
             <label className="block text-xs font-semibold text-slate-secondary mb-1">
-              GSTIN (Optional)
+              Shipping Address (Optional, if different)
             </label>
             <input
               type="text"
-              placeholder="e.g. 24ABCDE1234F1Z5"
-              value={gstin}
-              onChange={(e) => setGstin(e.target.value)}
-              className="w-full px-3 py-2 rounded-input bg-surface border border-border text-xs text-slate-primary focus:outline-none focus:border-primary uppercase"
+              placeholder="Delivery / warehouse address"
+              value={shippingAddress}
+              onChange={(e) => setShippingAddress(e.target.value)}
+              className="w-full px-3 py-2 rounded-input bg-surface border border-border text-xs text-slate-primary focus:outline-none focus:border-primary"
             />
+          </div>
+
+          {/* GSTIN & PAN */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs font-semibold text-slate-secondary mb-1">
+                GSTIN (Optional)
+              </label>
+              <input
+                type="text"
+                placeholder="24ABCDE1234F1Z5"
+                value={gstin}
+                onChange={(e) => setGstin(e.target.value)}
+                className="w-full px-3 py-2 rounded-input bg-surface border border-border text-xs text-slate-primary focus:outline-none focus:border-primary uppercase"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-secondary mb-1">
+                PAN Number (Optional)
+              </label>
+              <input
+                type="text"
+                placeholder="ABCDE1234F"
+                value={pan}
+                onChange={(e) => setPan(e.target.value)}
+                className="w-full px-3 py-2 rounded-input bg-surface border border-border text-xs text-slate-primary focus:outline-none focus:border-primary uppercase"
+              />
+            </div>
+          </div>
+
+          {/* Credit Limit & Credit Days */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs font-semibold text-slate-secondary mb-1">
+                Credit Limit (₹)
+              </label>
+              <input
+                type="number"
+                placeholder="0 (Unlimited)"
+                value={creditLimitStr}
+                onChange={(e) => setCreditLimitStr(e.target.value)}
+                className="w-full px-3 py-2 rounded-input bg-surface border border-border text-xs text-slate-primary focus:outline-none focus:border-primary font-semibold"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-secondary mb-1">
+                Credit Period (Days)
+              </label>
+              <input
+                type="number"
+                placeholder="30"
+                value={creditDaysStr}
+                onChange={(e) => setCreditDaysStr(e.target.value)}
+                className="w-full px-3 py-2 rounded-input bg-surface border border-border text-xs text-slate-primary focus:outline-none focus:border-primary font-semibold"
+              />
+            </div>
+          </div>
+
+          {/* Party Group & Email */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs font-semibold text-slate-secondary mb-1">
+                Party Group
+              </label>
+              <select
+                value={groupId}
+                onChange={(e) => setGroupId(e.target.value)}
+                className="w-full px-3 py-2 rounded-input bg-surface border border-border text-xs text-slate-primary focus:outline-none focus:border-primary font-semibold"
+              >
+                <option value="">General Group</option>
+                {partyGroups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-secondary mb-1">
+                Email Address
+              </label>
+              <input
+                type="email"
+                placeholder="party@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-3 py-2 rounded-input bg-surface border border-border text-xs text-slate-primary focus:outline-none focus:border-primary"
+              />
+            </div>
           </div>
         </div>
 

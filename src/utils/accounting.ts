@@ -4,7 +4,7 @@
  * stock adjustments, P&L, balance sheets, and aging analysis.
  */
 
-import { Account, Party, Transaction, Invoice, Item, StockMovement } from '../types';
+import { Account, Party, Transaction, Invoice, Item, StockMovement, AgeingRow } from '../types';
 
 /**
  * Calculates current balance for a specific account (Cash or Bank) in paise
@@ -542,3 +542,53 @@ export function calculateAgingBuckets(
     payables: { current: payCurrent, bucket30: pay30, bucket60: pay60, bucket90Plus: pay90, total: payTotal },
   };
 }
+
+/**
+ * Detailed party-wise ageing report
+ */
+export function calculateDetailedAgeingReport(
+  parties: Party[],
+  transactions: Transaction[],
+  invoices: Invoice[]
+): AgeingRow[] {
+  const today = new Date();
+  const rows: AgeingRow[] = [];
+
+  for (const party of parties.filter((p) => !p.isDeleted)) {
+    const net = calculatePartyNetBalance(party, transactions, invoices);
+    if (net === 0) continue;
+
+    const partyTxns = transactions.filter((t) => !t.isDeleted && t.partyId === party.id);
+    const lastDateStr = partyTxns.length > 0 ? partyTxns[partyTxns.length - 1].date : party.createdAt;
+    const lastDate = new Date(lastDateStr);
+    const diffDays = Math.floor((today.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
+
+    const isRec = net > 0;
+    const absNet = Math.abs(net);
+
+    let cur = 0;
+    let b30 = 0;
+    let b60 = 0;
+    let b90 = 0;
+
+    if (diffDays <= 30) cur = absNet;
+    else if (diffDays <= 60) b30 = absNet;
+    else if (diffDays <= 90) b60 = absNet;
+    else b90 = absNet;
+
+    rows.push({
+      partyId: party.id,
+      partyName: party.name,
+      phone: party.phone,
+      type: isRec ? 'RECEIVABLE' : 'PAYABLE',
+      current: cur,
+      days31to60: b30,
+      days61to90: b60,
+      days91plus: b90,
+      total: absNet,
+    });
+  }
+
+  return rows.sort((a, b) => b.total - a.total);
+}
+

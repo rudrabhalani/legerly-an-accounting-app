@@ -47,6 +47,9 @@ export const ReportsScreen: React.FC = () => {
   const openBalanceSheet = useLedgerlyStore((state) => state.openBalanceSheet);
   const openBillWisePnl = useLedgerlyStore((state) => state.openBillWisePnl);
   const openDayBook = useLedgerlyStore((state) => state.openDayBook);
+  const openGstrReportModal = useLedgerlyStore((state) => state.openGstrReportModal);
+  const openAgeingReportModal = useLedgerlyStore((state) => state.openAgeingReportModal);
+  const openCashFlowModal = useLedgerlyStore((state) => state.openCashFlowModal);
   const language = useLedgerlyStore((state) => state.business.language);
   const t = getTranslation(language);
 
@@ -196,6 +199,30 @@ export const ReportsScreen: React.FC = () => {
         >
           <TrendingUp size={14} />
           <span>Bill-wise P&L ↗</span>
+        </button>
+        <button
+          type="button"
+          onClick={openGstrReportModal}
+          className="px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-all border bg-white text-teal-700 border-teal-200 hover:bg-teal-50"
+        >
+          <Percent size={14} />
+          <span>GSTR-1 & 3B Returns ↗</span>
+        </button>
+        <button
+          type="button"
+          onClick={openAgeingReportModal}
+          className="px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-all border bg-white text-amber-700 border-amber-200 hover:bg-amber-50"
+        >
+          <Clock size={14} />
+          <span>Party Ageing ↗</span>
+        </button>
+        <button
+          type="button"
+          onClick={openCashFlowModal}
+          className="px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 whitespace-nowrap transition-all border bg-white text-cyan-700 border-cyan-200 hover:bg-cyan-50"
+        >
+          <TrendingUp size={14} />
+          <span>Cash Flow ↗</span>
         </button>
       </div>
 

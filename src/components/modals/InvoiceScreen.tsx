@@ -9,6 +9,8 @@ import {
   DiscountType,
   Party,
   Item,
+  PaymentTerms,
+  InvoiceTheme,
 } from '../../types';
 import {
   getTodayDateString,
@@ -87,6 +89,9 @@ export const InvoiceScreen: React.FC = () => {
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [date, setDate] = useState(getTodayDateString());
   const [dueDate, setDueDate] = useState(getTodayDateString());
+  const [paymentTerms, setPaymentTerms] = useState<PaymentTerms>('IMMEDIATE');
+  const [invoiceTheme, setInvoiceTheme] = useState<InvoiceTheme>('CLASSIC');
+  const [transDiscountStr, setTransDiscountStr] = useState('0');
 
   // Item Lines
   const [lines, setLines] = useState<InvoiceLine[]>([]);
@@ -136,10 +141,38 @@ export const InvoiceScreen: React.FC = () => {
         ? 'BILL'
         : invType === 'SALE_RETURN'
         ? 'SR'
-        : 'PR';
+        : invType === 'PURCHASE_RETURN'
+        ? 'PR'
+        : invType === 'QUOTATION'
+        ? 'EST'
+        : invType === 'SALE_ORDER'
+        ? 'SO'
+        : invType === 'PURCHASE_ORDER'
+        ? 'PO'
+        : 'DC';
     const fyPart = activeFY.replace('20', '').replace('-', '');
     const count = invoices.filter((i) => i.type === invType && i.financialYear === activeFY).length + 1;
     return `${prefix}/${fyPart}/${count.toString().padStart(3, '0')}`;
+  };
+
+  const handlePaymentTermsChange = (pt: PaymentTerms) => {
+    setPaymentTerms(pt);
+    if (pt === 'CUSTOM') return;
+    const days =
+      pt === 'IMMEDIATE'
+        ? 0
+        : pt === 'NET_15'
+        ? 15
+        : pt === 'NET_30'
+        ? 30
+        : pt === 'NET_45'
+        ? 45
+        : pt === 'NET_60'
+        ? 60
+        : 90;
+    const d = new Date(date || getTodayDateString());
+    d.setDate(d.getDate() + days);
+    setDueDate(d.toISOString().split('T')[0]);
   };
 
   // Reset or load active invoice
@@ -514,6 +547,8 @@ export const InvoiceScreen: React.FC = () => {
       partyName,
       date,
       dueDate,
+      paymentTerms,
+      theme: invoiceTheme,
       financialYear: activeFY,
       withGst,
       stateOfSupply,
@@ -532,8 +567,8 @@ export const InvoiceScreen: React.FC = () => {
       paymentMode: mappedPaymentMode,
       accountId: resolvedAccountId,
       status: invoiceStatus,
-      notes: undefined,
-      terms: 'Standard terms apply. Goods once sold are subject to business policy.',
+      notes: notes || undefined,
+      terms: terms || 'Standard terms apply. Goods once sold are subject to business policy.',
       lines,
     };
 
@@ -573,7 +608,12 @@ export const InvoiceScreen: React.FC = () => {
     }
   };
 
-  const isSale = type === 'SALE' || type === 'SALE_RETURN';
+  const isSale =
+    type === 'SALE' ||
+    type === 'SALE_RETURN' ||
+    type === 'QUOTATION' ||
+    type === 'SALE_ORDER' ||
+    type === 'DELIVERY_CHALLAN';
   const balanceDue = Math.max(0, totals.grandTotalPaise - rupeesToPaise(parseFloat(paidAmountStr) || 0));
 
   return (
@@ -591,15 +631,24 @@ export const InvoiceScreen: React.FC = () => {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold text-slate-primary">
-                  {type === 'SALE'
-                    ? 'Add Sale'
-                    : type === 'PURCHASE'
-                    ? 'Add Purchase'
-                    : type === 'SALE_RETURN'
-                    ? 'Sale Return'
-                    : 'Purchase Return'}
-                </h2>
+                <select
+                  value={type}
+                  onChange={(e) => {
+                    const newType = e.target.value as InvoiceType;
+                    setType(newType);
+                    setInvoiceNumber(generateNextNumber(newType));
+                  }}
+                  className="text-base sm:text-lg font-bold text-slate-primary bg-transparent border-b border-dashed border-slate-300 focus:outline-none cursor-pointer"
+                >
+                  <option value="SALE">Sale Invoice (Tax Bill)</option>
+                  <option value="PURCHASE">Purchase Bill</option>
+                  <option value="QUOTATION">Quotation / Estimate</option>
+                  <option value="SALE_ORDER">Sale Order</option>
+                  <option value="PURCHASE_ORDER">Purchase Order</option>
+                  <option value="DELIVERY_CHALLAN">Delivery Challan</option>
+                  <option value="SALE_RETURN">Sale Return (Credit Note)</option>
+                  <option value="PURCHASE_RETURN">Purchase Return (Debit Note)</option>
+                </select>
                 <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-primary-light text-primary">
                   {activeFY}
                 </span>
@@ -782,15 +831,52 @@ export const InvoiceScreen: React.FC = () => {
               </div>
             )}
 
+            {/* Payment Terms */}
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-primary">Payment Terms</label>
+              <select
+                value={paymentTerms}
+                onChange={(e) => handlePaymentTermsChange(e.target.value as PaymentTerms)}
+                className="w-full h-11 px-3 rounded-xl border border-border bg-white text-sm font-semibold text-slate-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                <option value="IMMEDIATE">Immediate (Due Today)</option>
+                <option value="NET_15">Net 15 Days</option>
+                <option value="NET_30">Net 30 Days</option>
+                <option value="NET_45">Net 45 Days</option>
+                <option value="NET_60">Net 60 Days</option>
+                <option value="NET_90">Net 90 Days</option>
+                <option value="CUSTOM">Custom Due Date</option>
+              </select>
+            </div>
+
             {/* Due Date */}
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-primary">Payment Due Date</label>
               <input
                 type="date"
                 value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
+                onChange={(e) => {
+                  setDueDate(e.target.value);
+                  setPaymentTerms('CUSTOM');
+                }}
                 className="w-full h-11 px-3 rounded-xl border border-border bg-white text-sm font-semibold text-slate-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
+            </div>
+
+            {/* Invoice Theme */}
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-primary">Invoice Theme</label>
+              <select
+                value={invoiceTheme}
+                onChange={(e) => setInvoiceTheme(e.target.value as InvoiceTheme)}
+                className="w-full h-11 px-3 rounded-xl border border-border bg-white text-sm font-semibold text-slate-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                <option value="CLASSIC">Classic Standard</option>
+                <option value="MODERN">Modern Minimal</option>
+                <option value="PROFESSIONAL">Corporate Professional</option>
+                <option value="THERMAL">Thermal Receipt (POS)</option>
+                <option value="MINIMAL">Clean Monochrome</option>
+              </select>
             </div>
           </div>
 
