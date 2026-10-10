@@ -123,7 +123,7 @@ interface LedgerlyState {
   period: DateFilterPeriod;
   customDateRange: { start: string; end: string };
   lastDeletedTransaction: Transaction | null;
-  activeTab: 'home' | 'bankLedger' | 'parties' | 'stock' | 'reports';
+  activeTab: 'home' | 'dashboard' | 'items' | 'menu' | 'getDesktop' | 'parties' | 'stock' | 'bankLedger' | 'reports';
 
 
   // Modals & Screens
@@ -215,7 +215,7 @@ interface LedgerlyState {
   // Base Actions
   setPeriod: (period: DateFilterPeriod) => void;
   setCustomDateRange: (range: { start: string; end: string }) => void;
-  setActiveTab: (tab: 'home' | 'bankLedger' | 'parties' | 'stock' | 'reports') => void;
+  setActiveTab: (tab: 'home' | 'dashboard' | 'items' | 'menu' | 'getDesktop' | 'parties' | 'stock' | 'bankLedger' | 'reports') => void;
   setLanguage: (lang: LanguageCode) => void;
   updateBusiness: (updates: Partial<Business>) => void;
   unlockApp: () => void;

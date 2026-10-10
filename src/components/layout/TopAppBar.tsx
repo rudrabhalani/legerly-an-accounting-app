@@ -1,181 +1,112 @@
 import React, { useState } from 'react';
 import { useLedgerlyStore } from '../../store/useLedgerlyStore';
-import { getTranslation } from '../../i18n/translations';
 import {
-  Menu,
+  Store,
+  Pencil,
   Bell,
   Settings as SettingsIcon,
-  ChevronDown,
-  Globe,
-  Users,
-  Search,
+  Check,
+  X,
+  User,
 } from 'lucide-react';
-import { LanguageCode } from '../../types';
-import { VyaparDrawer } from './VyaparDrawer';
 
 export const TopAppBar: React.FC = () => {
   const business = useLedgerlyStore((state) => state.business);
+  const updateBusinessProfile = useLedgerlyStore((state) => state.updateBusinessProfile);
+  const openSettings = useLedgerlyStore((state) => state.openSettings);
+  const openProfileModal = useLedgerlyStore((state) => state.openProfileModal);
   const users = useLedgerlyStore((state) => state.users);
   const currentUserId = useLedgerlyStore((state) => state.currentUserId);
-  const setLanguage = useLedgerlyStore((state) => state.setLanguage);
-  const openSettings = useLedgerlyStore((state) => state.openSettings);
-  const openMultiUserModal = useLedgerlyStore((state) => state.openMultiUserModal);
-  const openProfileModal = useLedgerlyStore((state) => state.openProfileModal);
-  const openAuthModal = useLedgerlyStore((state) => state.openAuthModal);
-  const openFinancialYearModal = useLedgerlyStore((state) => state.openFinancialYearModal);
-  const activeFY = useLedgerlyStore((state) => state.activeFinancialYear);
-
-  const t = getTranslation(business.language);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [showLangDropdown, setShowLangDropdown] = useState(false);
-  const [showBizDropdown, setShowBizDropdown] = useState(false);
 
   const currentUser = users.find((u) => u.id === currentUserId) || users[0];
 
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [tempName, setTempName] = useState(business.name || '');
+
+  const handleSaveName = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (tempName.trim()) {
+      updateBusinessProfile({ name: tempName.trim() });
+    }
+    setIsEditingName(false);
+  };
+
   return (
-    <>
-      <header className="sticky top-0 z-30 bg-[#ED1A3B] text-white shadow-md">
-        <div className="max-w-7xl mx-auto flex items-center justify-between px-3 sm:px-4 h-14">
-          {/* Left: Hamburger Menu (☰) + Business Name Dropdown */}
-          <div className="flex items-center gap-2.5 min-w-0">
-            {/* Hamburger Button to open Vyapar Side Drawer */}
-            <button
-              type="button"
-              onClick={() => setIsDrawerOpen(true)}
-              className="w-9 h-9 rounded-lg flex items-center justify-center text-white hover:bg-white/10 active:scale-95 transition-colors flex-shrink-0"
-              aria-label="Open Navigation Menu"
-            >
-              <Menu size={22} strokeWidth={2.2} />
-            </button>
-
-            {/* Business avatar & name */}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setShowBizDropdown(!showBizDropdown)}
-                className="flex items-center gap-1.5 min-w-0 text-left active:opacity-90"
-              >
-                <div className="w-8 h-8 rounded-lg bg-white text-[#ED1A3B] font-extrabold flex items-center justify-center flex-shrink-0 shadow-xs text-sm">
-                  {(business.name || 'S').substring(0, 1).toUpperCase()}
-                </div>
-                <div className="flex flex-col min-w-0">
-                  <span className="text-white text-[13px] sm:text-sm font-bold leading-tight truncate max-w-[140px] sm:max-w-[200px]">
-                    {business.name || 'Shree Sweet'}
-                  </span>
-                  <span className="text-white/80 text-[10px] leading-tight font-medium">
-                    FY {activeFY}
-                  </span>
-                </div>
-                <ChevronDown size={14} className="text-white/80 flex-shrink-0" />
-              </button>
-
-              {/* Company Switcher Dropdown */}
-              {showBizDropdown && (
-                <div className="absolute left-0 top-full mt-2 w-52 bg-white rounded-xl shadow-elevated border border-gray-200 py-1.5 z-50 text-gray-800 animate-in fade-in zoom-in-95">
-                  <div className="px-3.5 py-1.5 border-b border-gray-100">
-                    <span className="text-[10px] uppercase font-bold text-gray-400">Current Business</span>
-                    <span className="text-xs font-bold text-gray-900 block truncate">{business.name || 'Shree Sweet'}</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => { openProfileModal(); setShowBizDropdown(false); }}
-                    className="w-full text-left px-3.5 py-2 text-xs font-bold text-gray-800 hover:bg-gray-50 flex items-center gap-2"
-                  >
-                    <span>🏢</span> Business & Owner Profile
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { openFinancialYearModal(); setShowBizDropdown(false); }}
-                    className="w-full text-left px-3.5 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                  >
-                    <span>📅</span> Change Financial Year
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { openSettings(); setShowBizDropdown(false); }}
-                    className="w-full text-left px-3.5 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                  >
-                    <span>⚙️</span> Business Profile & GST
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { openMultiUserModal(); setShowBizDropdown(false); }}
-                    className="w-full text-left px-3.5 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                  >
-                    <span>👥</span> User Management & Auth ({users.length || 1})
-                  </button>
-                </div>
-              )}
-            </div>
+    <header className="sticky top-0 z-30 bg-white border-b border-gray-200/80 shadow-xs">
+      <div className="max-w-xl lg:max-w-7xl mx-auto flex items-center justify-between px-3.5 h-14">
+        {/* Left: 🏪 Shop Icon + Company Name with Inline Edit Pencil ✏️ (Exact Vyapar Header) */}
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+          {/* Blue circular store icon */}
+          <div
+            onClick={openProfileModal}
+            className="w-9 h-9 rounded-full border border-blue-400/80 bg-blue-50/60 text-[#1A73E8] flex items-center justify-center flex-shrink-0 cursor-pointer hover:bg-blue-100 transition-colors"
+            title="View & Edit Business Profile"
+          >
+            <Store size={18} strokeWidth={2.2} />
           </div>
 
-          {/* Right: Actions (Language, Multi-user, Settings) */}
-          <div className="flex items-center gap-1">
-            {/* Language Switcher */}
-            <div className="relative">
+          {/* Company Name with inline pencil edit */}
+          {isEditingName ? (
+            <form onSubmit={handleSaveName} className="flex items-center gap-1.5 flex-1 max-w-xs">
+              <input
+                type="text"
+                value={tempName}
+                onChange={(e) => setTempName(e.target.value)}
+                autoFocus
+                className="px-2 py-1 text-sm font-bold text-gray-900 border border-blue-500 rounded-lg focus:outline-none flex-1 min-w-0"
+              />
+              <button
+                type="submit"
+                className="p-1 rounded bg-emerald-600 text-white hover:bg-emerald-700"
+              >
+                <Check size={14} />
+              </button>
               <button
                 type="button"
-                onClick={() => setShowLangDropdown(!showLangDropdown)}
-                className="w-9 h-9 rounded-lg flex items-center justify-center text-white/90 hover:bg-white/10 transition-colors"
-                title="Change Language"
+                onClick={() => setIsEditingName(false)}
+                className="p-1 rounded bg-gray-200 text-gray-700 hover:bg-gray-300"
               >
-                <Globe size={18} />
+                <X size={14} />
               </button>
-              {showLangDropdown && (
-                <div className="absolute right-0 mt-1 w-32 bg-white rounded-xl shadow-elevated border border-gray-200 py-1.5 z-50 animate-in fade-in zoom-in-95">
-                  {[
-                    { code: 'en' as LanguageCode, label: 'English' },
-                    { code: 'hi' as LanguageCode, label: 'हिन्दी' },
-                    { code: 'gu' as LanguageCode, label: 'ગુજરાતી' },
-                  ].map((l) => (
-                    <button
-                      key={l.code}
-                      type="button"
-                      onClick={() => { setLanguage(l.code); setShowLangDropdown(false); }}
-                      className={`w-full text-left px-3 py-2 text-xs font-medium hover:bg-gray-50 ${
-                        business.language === l.code ? 'text-[#ED1A3B] font-bold bg-red-50' : 'text-gray-700'
-                      }`}
-                    >
-                      {l.label}
-                    </button>
-                  ))}
-                </div>
-              )}
+            </form>
+          ) : (
+            <div className="flex items-center gap-1.5 min-w-0 cursor-pointer" onClick={() => setIsEditingName(true)}>
+              <span className="text-base sm:text-lg font-bold text-[#1E293B] truncate leading-tight tracking-tight">
+                {business.name || 'Enter Company Name'}
+              </span>
+              <button
+                type="button"
+                className="p-1 text-gray-400 hover:text-gray-700 flex-shrink-0 transition-colors"
+                title="Edit Company Name"
+              >
+                <Pencil size={15} strokeWidth={2} />
+              </button>
             </div>
-
-            {/* Team / Multi-User */}
-            <button
-              type="button"
-              onClick={openMultiUserModal}
-              className="w-9 h-9 rounded-lg flex items-center justify-center text-white/90 hover:bg-white/10 transition-colors relative"
-              title="Team Access"
-            >
-              <Users size={18} />
-              {users.length > 1 && (
-                <span className="absolute top-1 right-1 w-3.5 h-3.5 bg-yellow-400 text-black text-[9px] font-extrabold rounded-full flex items-center justify-center">
-                  {users.length}
-                </span>
-              )}
-            </button>
-
-            {/* Settings */}
-            <button
-              type="button"
-              onClick={openSettings}
-              className="w-9 h-9 rounded-lg flex items-center justify-center text-white/90 hover:bg-white/10 transition-colors"
-              title="Settings"
-            >
-              <SettingsIcon size={18} />
-            </button>
-          </div>
+          )}
         </div>
-      </header>
 
-      {/* Vyapar Side Navigation Drawer */}
-      <VyaparDrawer
-        isOpen={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
-      />
-    </>
+        {/* Right: Notification Bell 🔔 + Settings Gear ⚙️ (Exact Vyapar Header) */}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {/* Notification Bell */}
+          <button
+            type="button"
+            className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors relative"
+            title="Notifications"
+          >
+            <Bell size={20} strokeWidth={1.8} />
+          </button>
+
+          {/* Settings Gear */}
+          <button
+            type="button"
+            onClick={openSettings}
+            className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors"
+            title="Settings"
+          >
+            <SettingsIcon size={20} strokeWidth={1.8} />
+          </button>
+        </div>
+      </div>
+    </header>
   );
 };
