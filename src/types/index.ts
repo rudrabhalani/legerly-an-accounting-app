@@ -35,16 +35,29 @@ export type StockRefType = 'PURCHASE' | 'SALE' | 'ADJUSTMENT' | 'SALE_RETURN' | 
 
 export type LanguageCode = 'en' | 'hi' | 'gu';
 
-export type UserRole = 'OWNER' | 'MANAGER' | 'STAFF' | 'VIEWER';
+export type UserRole = 
+  | 'OWNER' 
+  | 'ADMIN' 
+  | 'SECONDARY_ADMIN' 
+  | 'ACCOUNTANT' 
+  | 'SALESMAN' 
+  | 'STOCK_KEEPER' 
+  | 'VIEWER' 
+  | 'MANAGER' 
+  | 'STAFF';
 
 export interface AppUser {
   id: string;
   name: string;
   phone: string;
+  email?: string;
   role: UserRole;
+  pin?: string; // 4-digit PIN for secure authentication
   isVerified: boolean;
   addedAt: string;
   isDeviceOwner?: boolean;
+  status?: 'ACTIVE' | 'INACTIVE';
+  lastLogin?: string;
 }
 
 export interface Business {
@@ -53,11 +66,20 @@ export interface Business {
   ownerName: string;
   ownerPhone: string;
   phone: string;
+  email?: string;
   logo?: string;
   currency: 'INR';
   gstEnabled: boolean;
   gstin?: string;
   address?: string;
+  state?: string;
+  pincode?: string;
+  businessType?: 'RETAILER' | 'WHOLESALER' | 'MANUFACTURER' | 'SERVICE' | 'DISTRIBUTOR';
+  upiId?: string;
+  bankName?: string;
+  bankAccountNo?: string;
+  bankIfsc?: string;
+  signature?: string;
   financialYearStart: string; // e.g. "2026-04-01"
   language: LanguageCode;
   pinCode?: string;

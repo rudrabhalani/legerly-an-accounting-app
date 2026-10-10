@@ -74,13 +74,21 @@ export const MultiUserModal: React.FC = () => {
   const getRoleBadge = (r: UserRole) => {
     switch (r) {
       case 'OWNER':
-        return { label: 'Owner', color: 'bg-amber-100 text-amber-800 border-amber-200', icon: Crown };
+      case 'ADMIN':
+        return { label: 'Owner / Admin', color: 'bg-amber-100 text-amber-800 border-amber-200', icon: Crown };
+      case 'SECONDARY_ADMIN':
       case 'MANAGER':
-        return { label: 'Manager', color: 'bg-indigo-100 text-indigo-800 border-indigo-200', icon: Briefcase };
+        return { label: 'Manager / Admin', color: 'bg-indigo-100 text-indigo-800 border-indigo-200', icon: Briefcase };
+      case 'ACCOUNTANT':
+        return { label: 'Accountant', color: 'bg-blue-100 text-blue-800 border-blue-200', icon: ShieldCheck };
+      case 'SALESMAN':
       case 'STAFF':
-        return { label: 'Staff', color: 'bg-emerald-100 text-emerald-800 border-emerald-200', icon: ShieldCheck };
+        return { label: 'Salesperson / Staff', color: 'bg-emerald-100 text-emerald-800 border-emerald-200', icon: ShieldCheck };
+      case 'STOCK_KEEPER':
+        return { label: 'Stock Keeper', color: 'bg-cyan-100 text-cyan-800 border-cyan-200', icon: Briefcase };
       case 'VIEWER':
-        return { label: 'Viewer', color: 'bg-slate-100 text-slate-800 border-slate-200', icon: Eye };
+      default:
+        return { label: 'Viewer / Cashier', color: 'bg-slate-100 text-slate-800 border-slate-200', icon: Eye };
     }
   };
 

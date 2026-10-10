@@ -20,6 +20,8 @@ export const TopAppBar: React.FC = () => {
   const setLanguage = useLedgerlyStore((state) => state.setLanguage);
   const openSettings = useLedgerlyStore((state) => state.openSettings);
   const openMultiUserModal = useLedgerlyStore((state) => state.openMultiUserModal);
+  const openProfileModal = useLedgerlyStore((state) => state.openProfileModal);
+  const openAuthModal = useLedgerlyStore((state) => state.openAuthModal);
   const openFinancialYearModal = useLedgerlyStore((state) => state.openFinancialYearModal);
   const activeFY = useLedgerlyStore((state) => state.activeFinancialYear);
 
@@ -76,6 +78,13 @@ export const TopAppBar: React.FC = () => {
                   </div>
                   <button
                     type="button"
+                    onClick={() => { openProfileModal(); setShowBizDropdown(false); }}
+                    className="w-full text-left px-3.5 py-2 text-xs font-bold text-gray-800 hover:bg-gray-50 flex items-center gap-2"
+                  >
+                    <span>🏢</span> Business & Owner Profile
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => { openFinancialYearModal(); setShowBizDropdown(false); }}
                     className="w-full text-left px-3.5 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                   >
@@ -93,7 +102,7 @@ export const TopAppBar: React.FC = () => {
                     onClick={() => { openMultiUserModal(); setShowBizDropdown(false); }}
                     className="w-full text-left px-3.5 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                   >
-                    <span>👥</span> Manage Team ({users.length || 1})
+                    <span>👥</span> User Management & Auth ({users.length || 1})
                   </button>
                 </div>
               )}

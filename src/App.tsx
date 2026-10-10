@@ -30,6 +30,8 @@ import { FinancialYearModal } from './components/modals/FinancialYearModal';
 import { ReconcileModal } from './components/modals/ReconcileModal';
 import { SettingsModal } from './components/modals/SettingsModal';
 import { MultiUserModal } from './components/modals/MultiUserModal';
+import { ProfileModal } from './components/modals/ProfileModal';
+import { AuthModal } from './components/modals/AuthModal';
 import { TransactionDetailModal } from './components/modals/TransactionDetailModal';
 import { DayBookModal } from './components/modals/DayBookModal';
 import { BalanceSheetModal } from './components/modals/BalanceSheetModal';
@@ -98,6 +100,8 @@ export function App() {
       <ReconcileModal />
       <SettingsModal />
       <MultiUserModal />
+      <ProfileModal />
+      <AuthModal />
       <TransactionDetailModal />
       <DayBookModal />
       <BalanceSheetModal />

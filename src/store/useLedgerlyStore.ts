@@ -263,6 +263,17 @@ interface LedgerlyState {
   closeSettings: () => void;
   openMultiUserModal: () => void;
   closeMultiUserModal: () => void;
+  isProfileModalOpen: boolean;
+  openProfileModal: () => void;
+  closeProfileModal: () => void;
+  isAuthModalOpen: boolean;
+  openAuthModal: () => void;
+  closeAuthModal: () => void;
+  updateBusinessProfile: (updates: Partial<Business>) => void;
+  authenticateUserPin: (userId: string, pin: string) => boolean;
+  addUserDirect: (user: { name: string; phone: string; email?: string; role: UserRole; pin?: string }) => AppUser;
+  updateUserPin: (userId: string, newPin: string) => void;
+  logoutUser: () => void;
   openBankPickerModal: () => void;
   closeBankPickerModal: () => void;
   openPeriodCashflow: () => void;
@@ -422,6 +433,8 @@ export const useLedgerlyStore = create<LedgerlyState>()(
       isReconcileModalOpen: false,
       isSettingsOpen: false,
       isMultiUserModalOpen: false,
+      isProfileModalOpen: false,
+      isAuthModalOpen: false,
       isBankPickerModalOpen: false,
       isFinancialYearModalOpen: false,
       isDeleteYearModalOpen: false,
@@ -733,6 +746,12 @@ export const useLedgerlyStore = create<LedgerlyState>()(
       openMultiUserModal: () => set({ isMultiUserModalOpen: true }),
       closeMultiUserModal: () => set({ isMultiUserModalOpen: false }),
 
+      openProfileModal: () => set({ isProfileModalOpen: true }),
+      closeProfileModal: () => set({ isProfileModalOpen: false }),
+
+      openAuthModal: () => set({ isAuthModalOpen: true }),
+      closeAuthModal: () => set({ isAuthModalOpen: false }),
+
       openBankPickerModal: () => set({ isBankPickerModalOpen: true }),
       closeBankPickerModal: () => set({ isBankPickerModalOpen: false }),
 
@@ -1038,6 +1057,41 @@ export const useLedgerlyStore = create<LedgerlyState>()(
           currentUserId: state.currentUserId === userId ? (state.users[0]?.id || null) : state.currentUserId,
         }));
       },
+
+      updateBusinessProfile: (updates) =>
+        set((state) => ({ business: { ...state.business, ...updates } })),
+
+      authenticateUserPin: (userId, pin) => {
+        const user = get().users.find((u) => u.id === userId);
+        if (!user) return false;
+        const validPin = user.pin || '1234';
+        if (pin === validPin) {
+          set({ currentUserId: userId, isAuthModalOpen: false });
+          return true;
+        }
+        return false;
+      },
+
+      addUserDirect: (data) => {
+        const newUser: AppUser = {
+          ...data,
+          id: `usr-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          isVerified: true,
+          addedAt: new Date().toISOString(),
+          status: 'ACTIVE',
+          lastLogin: new Date().toISOString(),
+        };
+        set((state) => ({ users: [...state.users, newUser] }));
+        return newUser;
+      },
+
+      updateUserPin: (userId, newPin) => {
+        set((state) => ({
+          users: state.users.map((u) => (u.id === userId ? { ...u, pin: newPin } : u)),
+        }));
+      },
+
+      logoutUser: () => set({ currentUserId: null, isAuthModalOpen: true }),
 
       // Core Transaction operations
       addTransaction: (txnData) => {

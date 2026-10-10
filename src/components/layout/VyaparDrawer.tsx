@@ -48,6 +48,13 @@ export const VyaparDrawer: React.FC<VyaparDrawerProps> = ({ isOpen, onClose }) =
   const openBackupModal = useLedgerlyStore((state) => state.openBackupModal);
   const openSettings = useLedgerlyStore((state) => state.openSettings);
   const openFinancialYearModal = useLedgerlyStore((state) => state.openFinancialYearModal);
+  const openProfileModal = useLedgerlyStore((state) => state.openProfileModal);
+  const openAuthModal = useLedgerlyStore((state) => state.openAuthModal);
+  const openMultiUserModal = useLedgerlyStore((state) => state.openMultiUserModal);
+  const users = useLedgerlyStore((state) => state.users);
+  const currentUserId = useLedgerlyStore((state) => state.currentUserId);
+
+  const currentUser = users.find((u) => u.id === currentUserId) || users[0];
 
   if (!isOpen) return null;
 
@@ -66,8 +73,12 @@ export const VyaparDrawer: React.FC<VyaparDrawerProps> = ({ isOpen, onClose }) =
 
       {/* Drawer Panel */}
       <div className="relative w-72 sm:w-80 max-w-[85vw] bg-white h-full shadow-2xl flex flex-col z-10 overflow-y-auto animate-in slide-in-from-left duration-200">
-        {/* Header Profile Card (Vyapar Style) */}
-        <div className="bg-gradient-to-r from-[#ED1A3B] to-[#C21833] text-white p-4">
+        {/* Header Profile Card (Vyapar Style) - Clicking opens Profile */}
+        <div
+          onClick={() => navigateTo(openProfileModal)}
+          className="bg-gradient-to-r from-[#ED1A3B] to-[#C21833] text-white p-4 cursor-pointer hover:opacity-95 transition-all"
+          title="Click to view & edit business profile"
+        >
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl bg-white text-[#ED1A3B] font-extrabold text-xl flex items-center justify-center shadow-md">
@@ -80,13 +91,19 @@ export const VyaparDrawer: React.FC<VyaparDrawerProps> = ({ isOpen, onClose }) =
                 <span className="text-[11px] text-white/90 block mt-0.5 truncate">
                   {business.phone ? `+91 ${business.phone}` : 'GST Billing & Khata'}
                 </span>
-                <span className="inline-block mt-1 px-2 py-0.5 rounded-full bg-white/20 text-[10px] font-semibold tracking-wide">
-                  FY {activeFY}
-                </span>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="px-2 py-0.5 rounded-full bg-white/20 text-[10px] font-semibold tracking-wide">
+                    FY {activeFY}
+                  </span>
+                  <span className="text-[10px] text-white/90 underline font-medium">Edit Profile &rarr;</span>
+                </div>
               </div>
             </div>
             <button
-              onClick={onClose}
+              onClick={(e) => {
+                e.stopPropagation();
+                onClose();
+              }}
               className="p-1 rounded-full text-white/80 hover:text-white hover:bg-white/10"
             >
               <X size={20} />
@@ -386,21 +403,61 @@ export const VyaparDrawer: React.FC<VyaparDrawerProps> = ({ isOpen, onClose }) =
               <ChevronRight size={14} className="text-gray-400" />
             </button>
             <button
+              onClick={() => navigateTo(openProfileModal)}
+              className="w-full px-4 py-2.5 flex items-center justify-between text-gray-700 hover:bg-gray-50"
+            >
+              <div className="flex items-center gap-3 font-semibold">
+                <Building2 size={16} className="text-[#ED1A3B]" />
+                <span>Shop & Owner Profile</span>
+              </div>
+              <ChevronRight size={14} className="text-gray-400" />
+            </button>
+            <button
+              onClick={() => navigateTo(openMultiUserModal)}
+              className="w-full px-4 py-2.5 flex items-center justify-between text-gray-700 hover:bg-gray-50"
+            >
+              <div className="flex items-center gap-3 font-semibold">
+                <Users size={16} className="text-indigo-600" />
+                <span>User Roles & Permissions</span>
+              </div>
+              <span className="text-[10px] font-bold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                {users.length || 1}
+              </span>
+            </button>
+            <button
               onClick={() => navigateTo(openSettings)}
               className="w-full px-4 py-2.5 flex items-center justify-between text-gray-700 hover:bg-gray-50"
             >
               <div className="flex items-center gap-3 font-semibold">
                 <Building2 size={16} className="text-gray-600" />
-                <span>Business Profile Settings</span>
+                <span>App & Language Settings</span>
               </div>
               <ChevronRight size={14} className="text-gray-400" />
             </button>
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="p-3 bg-gray-50 border-t border-gray-100 text-center text-[11px] text-gray-500">
-          <span className="font-bold text-gray-700">Vyapar Pro Edition</span> • 100% Offline & GST Ready
+        {/* User Session Footer (Vyapar Style) */}
+        <div className="p-3 bg-gray-900 text-white flex items-center justify-between text-xs">
+          <div
+            onClick={() => navigateTo(openProfileModal)}
+            className="flex items-center gap-2.5 cursor-pointer hover:opacity-90 min-w-0"
+          >
+            <div className="w-8 h-8 rounded-lg bg-[#ED1A3B] text-white font-extrabold flex items-center justify-center text-xs flex-shrink-0">
+              {(currentUser?.name || 'A').substring(0, 1).toUpperCase()}
+            </div>
+            <div className="min-w-0">
+              <span className="font-bold block truncate leading-tight">{currentUser?.name || 'Admin'}</span>
+              <span className="text-[10px] text-gray-400 block truncate">{currentUser?.role || 'OWNER'}</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigateTo(openAuthModal)}
+            className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white font-bold text-[10px] transition-all"
+          >
+            🔒 Lock / PIN
+          </button>
         </div>
       </div>
     </div>
