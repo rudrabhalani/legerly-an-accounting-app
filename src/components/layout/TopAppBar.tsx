@@ -1,34 +1,21 @@
 import React, { useState } from 'react';
 import { useLedgerlyStore } from '../../store/useLedgerlyStore';
 import { getTranslation } from '../../i18n/translations';
-import { Calendar, Settings as SettingsIcon, Globe, ChevronDown, Users, Crown, Clock } from 'lucide-react';
-import { DateFilterPeriod, LanguageCode } from '../../types';
+import { Calendar, Settings as SettingsIcon, Globe, Users, Crown } from 'lucide-react';
+import { LanguageCode } from '../../types';
 
 export const TopAppBar: React.FC = () => {
   const business = useLedgerlyStore((state) => state.business);
   const users = useLedgerlyStore((state) => state.users);
   const currentUserId = useLedgerlyStore((state) => state.currentUserId);
-  const period = useLedgerlyStore((state) => state.period);
-  const setPeriod = useLedgerlyStore((state) => state.setPeriod);
   const setLanguage = useLedgerlyStore((state) => state.setLanguage);
   const openSettings = useLedgerlyStore((state) => state.openSettings);
   const openMultiUserModal = useLedgerlyStore((state) => state.openMultiUserModal);
   const openFinancialYearModal = useLedgerlyStore((state) => state.openFinancialYearModal);
-  const openPeriodCashflow = useLedgerlyStore((state) => state.openPeriodCashflow);
   const activeFY = useLedgerlyStore((state) => state.activeFinancialYear);
 
   const t = getTranslation(business.language);
-  const [showPeriodDropdown, setShowPeriodDropdown] = useState(false);
   const [showLangDropdown, setShowLangDropdown] = useState(false);
-
-  const periodLabels: Record<DateFilterPeriod, string> = {
-    TODAY: 'Today',
-    THIS_WEEK: 'This Week',
-    THIS_MONTH: 'This Month',
-    THIS_YEAR: 'This Year',
-    ALL: 'All Time',
-    CUSTOM: 'Custom',
-  };
 
   const currentUser = users.find((u) => u.id === currentUserId) || users[0];
 
@@ -61,22 +48,11 @@ export const TopAppBar: React.FC = () => {
 
         {/* Right: Actions */}
         <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Time Icon: Quick Debit / Credit Amount by Timeframe (Today, Last Day, Last Week, etc.) */}
-          <button
-            type="button"
-            onClick={openPeriodCashflow}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 text-xs font-bold transition-all active:scale-95 shadow-xs"
-            title="Debit / Credit Summary (Today, Last Day, Last Week, Last Month, Last Year, Date-wise)"
-          >
-            <Clock size={15} className="text-amber-600" />
-            <span className="hidden sm:inline">Dr/Cr Time</span>
-          </button>
-
           {/* Financial Year Button */}
           <button
             type="button"
             onClick={openFinancialYearModal}
-            className="flex items-center gap-1 px-2 py-1.5 rounded-xl bg-primary-light hover:bg-indigo-100 border border-primary/20 text-primary text-xs font-bold transition-all active:scale-95"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-primary-light hover:bg-indigo-100 border border-primary/20 text-primary text-xs font-bold transition-all active:scale-95 shadow-xs"
             title="Financial Year & Rollover"
           >
             <Calendar size={13} />
@@ -88,7 +64,7 @@ export const TopAppBar: React.FC = () => {
           <button
             type="button"
             onClick={openMultiUserModal}
-            className="flex items-center gap-1 px-2 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-primary text-xs font-bold transition-all active:scale-95"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-primary text-xs font-bold transition-all active:scale-95 shadow-xs"
             title="Manage Team & Shared Access"
           >
             <Users size={14} />
@@ -97,39 +73,6 @@ export const TopAppBar: React.FC = () => {
               {users.length || 1}
             </span>
           </button>
-
-          {/* Period Filter Dropdown */}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setShowPeriodDropdown(!showPeriodDropdown)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-surface-subtle hover:bg-slate-200/60 border border-border text-xs font-semibold text-slate-primary transition-all active:scale-95"
-            >
-              <Calendar size={13} className="text-primary" />
-              <span>{periodLabels[period]}</span>
-              <ChevronDown size={12} className="text-slate-secondary" />
-            </button>
-
-            {showPeriodDropdown && (
-              <div className="absolute right-0 mt-1.5 w-36 bg-white rounded-2xl shadow-elevated border border-border py-1.5 z-40 animate-in fade-in zoom-in-95">
-                {(['TODAY', 'THIS_WEEK', 'THIS_MONTH', 'THIS_YEAR', 'ALL'] as DateFilterPeriod[]).map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => {
-                      setPeriod(p);
-                      setShowPeriodDropdown(false);
-                    }}
-                    className={`w-full text-left px-3 py-2 text-xs font-medium hover:bg-primary-light hover:text-primary transition-colors ${
-                      period === p ? 'text-primary font-bold bg-primary-light/50' : 'text-slate-primary'
-                    }`}
-                  >
-                    {periodLabels[p]}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
 
           {/* Language Switcher */}
           <div className="relative">
