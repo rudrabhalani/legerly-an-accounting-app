@@ -38,6 +38,7 @@ import {
   Percent,
   Search,
   BookUser,
+  Loader2,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -97,6 +98,7 @@ export const InvoiceScreen: React.FC = () => {
   const [selectedAccountId, setSelectedAccountId] = useState('');
   const [paidAmountStr, setPaidAmountStr] = useState('');
   const [isManualPaidAmount, setIsManualPaidAmount] = useState(false);
+  const [isSharingPdf, setIsSharingPdf] = useState(false);
 
   // Quick Add Party Modal
   const [showQuickPartyModal, setShowQuickPartyModal] = useState(false);
@@ -553,13 +555,18 @@ export const InvoiceScreen: React.FC = () => {
     confetti({ particleCount: 40, spread: 60, origin: { y: 0.8 } });
 
     if (andShare) {
-      const defaultBankAcc = accounts.find((a) => a.id === invData.accountId && a.type === 'BANK') || accounts.find((a) => a.type === 'BANK');
-      await shareBillPdfFile({
-        invoice,
-        business,
-        party: selectedParty,
-        account: defaultBankAcc,
-      });
+      setIsSharingPdf(true);
+      try {
+        const defaultBankAcc = accounts.find((a) => a.id === invData.accountId && a.type === 'BANK') || accounts.find((a) => a.type === 'BANK');
+        await shareBillPdfFile({
+          invoice,
+          business,
+          party: selectedParty,
+          account: defaultBankAcc,
+        });
+      } finally {
+        setIsSharingPdf(false);
+      }
     }
 
     if (andNew) {
@@ -1319,10 +1326,15 @@ export const InvoiceScreen: React.FC = () => {
             <button
               type="button"
               onClick={() => handleSave(false, true)}
-              className="px-3.5 py-2.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-primary border border-indigo-200 font-bold text-xs flex items-center gap-1.5 transition-all active:scale-95"
+              disabled={isSharingPdf}
+              className="px-3.5 py-2.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-primary border border-indigo-200 font-bold text-xs flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <Download size={14} />
-              <span>Save & Share PDF</span>
+              {isSharingPdf ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <Download size={14} />
+              )}
+              <span>{isSharingPdf ? 'Sharing PDF...' : 'Save & Share PDF'}</span>
             </button>
 
             <button

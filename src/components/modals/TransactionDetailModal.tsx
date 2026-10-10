@@ -29,6 +29,7 @@ import {
   CheckCircle2,
   AlertCircle,
   MessageCircle,
+  Loader2,
 } from 'lucide-react';
 
 export const TransactionDetailModal: React.FC = () => {
@@ -48,6 +49,7 @@ export const TransactionDetailModal: React.FC = () => {
   const deleteTransaction = useLedgerlyStore((state) => state.deleteTransaction);
 
   const [shareSuccess, setShareSuccess] = useState<string | null>(null);
+  const [isSharing, setIsSharing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   if (!isTransactionDetailOpen) return null;
@@ -152,6 +154,7 @@ export const TransactionDetailModal: React.FC = () => {
 
   // Actions: Direct WhatsApp Sharing (actual generated PDF file attached)
   const handleShareOnWhatsApp = async () => {
+    setIsSharing(true);
     try {
       if (inv) {
         const res = await shareBillPdfFile({
@@ -189,6 +192,8 @@ export const TransactionDetailModal: React.FC = () => {
       }
     } catch (err) {
       alert('Error preparing WhatsApp document share. Please try downloading the PDF directly.');
+    } finally {
+      setIsSharing(false);
     }
   };
 
@@ -580,11 +585,16 @@ export const TransactionDetailModal: React.FC = () => {
             <button
               type="button"
               onClick={handleShareOnWhatsApp}
-              className="px-3 py-2 rounded-xl text-xs font-bold text-slate-900 bg-white border-2 border-emerald-500 hover:bg-emerald-50/50 flex items-center gap-1.5 transition-all active:scale-95 shadow-xs"
+              disabled={isSharing}
+              className="px-3 py-2 rounded-xl text-xs font-bold text-slate-900 bg-white border-2 border-emerald-500 hover:bg-emerald-50/50 flex items-center gap-1.5 transition-all active:scale-95 shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
               title="Share PDF bill directly via WhatsApp"
             >
-              <MessageCircle size={15} className="text-emerald-600" />
-              <span>Share on WhatsApp</span>
+              {isSharing ? (
+                <Loader2 size={15} className="text-emerald-600 animate-spin" />
+              ) : (
+                <MessageCircle size={15} className="text-emerald-600" />
+              )}
+              <span>{isSharing ? 'Generating PDF...' : 'Share on WhatsApp'}</span>
             </button>
           </div>
 

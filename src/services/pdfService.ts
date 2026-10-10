@@ -498,30 +498,30 @@ export async function shareBillPdfFile({
 }: ShareBillPdfOptions): Promise<{ success: boolean; message: string; fileName: string; sharedViaNativeSheet: boolean }> {
   const doc = generateInvoicePdf(invoice, business, party, account);
   
-  // Format clean file name: e.g. BILL/2627/001 -> BILL-2627-001.pdf
-  const cleanNumber = (invoice.number || 'BILL')
+  // Format file name format: Invoice-[InvoiceNo]-[CustomerName].pdf
+  const cleanInvNo = (invoice.number || 'BILL')
     .replace(/[^a-zA-Z0-9.-]/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
-  const fileName = `${cleanNumber}.pdf`;
+  const cleanCustomer = (party?.name || invoice.partyName || 'Customer')
+    .trim()
+    .replace(/[^a-zA-Z0-9.-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+  const fileName = `Invoice-${cleanInvNo}-${cleanCustomer}.pdf`;
 
-  // Always save / download the file to the device
-  try {
-    doc.save(fileName);
-  } catch (err) {
-    console.warn('doc.save error:', err);
-  }
-
-  // Create real File object from PDF binary Blob
+  // Create real File object from PDF binary Blob in memory (NO upfront Chrome download bar!)
   const pdfBlob = doc.output('blob');
   const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf', lastModified: Date.now() });
 
-  const dueAmount = Math.max(0, invoice.total - invoice.paidAmount);
   const partyName = party?.name || invoice.partyName || 'Customer';
-  const shopName = business.name || 'Shree Sweet';
-  const caption = `Dear ${partyName}, here is your Bill #${invoice.number} of ${formatINR(invoice.total)} from ${shopName}. Balance due: ${formatINR(dueAmount)}. Thank you!`;
+  const amountRupees = (invoice.total / 100).toLocaleString('en-IN', {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: (invoice.total % 100 !== 0 ? 2 : 0),
+  });
+  const caption = `Hello ${partyName}, your invoice ${invoice.number} for ₹${amountRupees} is attached. Thank you!`;
 
-  // 1. Try native Web Share API with actual PDF File
+  // 1. Native Web Share API with actual PDF File attached directly
   if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
     const canShareFiles = typeof navigator.canShare === 'function' && navigator.canShare({ files: [pdfFile] });
     if (canShareFiles) {
@@ -533,7 +533,7 @@ export async function shareBillPdfFile({
         });
         return {
           success: true,
-          message: `Bill PDF (${fileName}) shared successfully with file attachment.`,
+          message: `Invoice PDF (${fileName}) attached and shared directly.`,
           fileName,
           sharedViaNativeSheet: true,
         };
@@ -541,7 +541,7 @@ export async function shareBillPdfFile({
         if (err?.name === 'AbortError') {
           return {
             success: true,
-            message: `Bill PDF (${fileName}) saved to device. Share dialog closed.`,
+            message: `Share dialog dismissed.`,
             fileName,
             sharedViaNativeSheet: true,
           };
@@ -551,11 +551,30 @@ export async function shareBillPdfFile({
     }
   }
 
-  // 2. Fallback: file is saved, alert the user explicitly. Never silently send text only.
-  const fallbackMsg = `File saved, please attach it in WhatsApp`;
+  // 2. Fallback: If direct file sharing is not supported, download the file and open WhatsApp link
+  try {
+    doc.save(fileName);
+  } catch (err) {
+    console.warn('Fallback save error:', err);
+  }
+
+  const phone = party?.phone ? party.phone.replace(/\D/g, '') : '';
+  const fallbackText = encodeURIComponent(
+    `${caption}\n\n(📄 Note: "${fileName}" has been downloaded to your device; please attach it here).`
+  );
+  const waUrl = phone
+    ? `https://wa.me/91${phone}?text=${fallbackText}`
+    : `https://wa.me/?text=${fallbackText}`;
+
+  if (typeof window !== 'undefined') {
+    window.open(waUrl, '_blank');
+  }
+
+  const fallbackMsg = `File saved (${fileName}). Direct file sharing is not supported by this browser; opening WhatsApp with message. Please attach the downloaded PDF.`;
   if (typeof window !== 'undefined' && typeof window.alert === 'function') {
     window.alert(fallbackMsg);
   }
+
   return {
     success: true,
     message: fallbackMsg,

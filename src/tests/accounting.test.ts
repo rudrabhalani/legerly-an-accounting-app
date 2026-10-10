@@ -827,7 +827,7 @@ describe('Store: Auto-Save Items & Transaction Details Modal', () => {
       party,
     });
 
-    expect(shareResult.fileName).toBe('BILL-2627-001.pdf');
+    expect(shareResult.fileName).toBe('Invoice-BILL-2627-001-Keyur-bhai.pdf');
     expect(shareResult.success).toBe(true);
   });
 });
