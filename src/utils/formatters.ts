@@ -79,6 +79,18 @@ export function formatINR(paise: number, options: FormatINROptions = {}): string
 }
 
 /**
+ * Safe currency formatter for PDFs (uses ASCII 'Rs.' and '-' to ensure
+ * standard PDF fonts like Helvetica render crisp, aligned, and without glyph corruption)
+ */
+export function formatPdfINR(paise: number, showDecimals: boolean = true): string {
+  const rupeeVal = paiseToRupees(Math.abs(paise));
+  const hasDecimals = paise % 100 !== 0 || showDecimals;
+  const formatted = formatIndianNumber(rupeeVal, hasDecimals);
+  const base = `Rs. ${formatted}`;
+  return paise < 0 ? `-${base}` : base;
+}
+
+/**
  * Formats date into human friendly Indian accounting style
  */
 export function formatDate(dateStr: string): string {

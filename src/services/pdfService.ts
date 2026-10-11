@@ -20,8 +20,9 @@ import {
   BillWisePnlRow,
   ShareFormat,
 } from '../types';
-import { formatINR, formatFullDate, paiseToRupees } from '../utils/formatters';
+import { formatINR, formatPdfINR, formatFullDate, paiseToRupees } from '../utils/formatters';
 import { numberToIndianWords } from '../utils/gstCalc';
+import { normalizePhoneNumber } from '../utils/contactPicker';
 
 // In-memory cache for generated PDF and Image files per invoice version
 const pdfCache = new Map<string, { file: File; blob: Blob; doc: jsPDF }>();
@@ -71,7 +72,7 @@ export function formatInvoiceMessageTemplate(
   party?: Party,
   viewLink?: string
 ): string {
-  const customerName = party?.name || invoice.partyName || 'Customer';
+  const customerName = invoice.partyName || party?.name || 'Customer';
   const billNo = invoice.number || 'BILL';
   const total = (invoice.total / 100).toLocaleString('en-IN', {
     maximumFractionDigits: 2,
@@ -158,8 +159,8 @@ export function generateInvoicePdf(
     const itemsHead = is58 ? [['Item', 'Qty', 'Amt']] : [['#', 'Item', 'Qty', 'Rate', 'Amt']];
     const itemsBody = invoice.lines.map((l, idx) =>
       is58
-        ? [l.itemName, `${l.qty} ${l.unit}`, `Rs.${paiseToRupees(l.amount).toFixed(2)}`]
-        : [(idx + 1).toString(), l.itemName, `${l.qty} ${l.unit}`, `Rs.${paiseToRupees(l.rate).toFixed(2)}`, `Rs.${paiseToRupees(l.amount).toFixed(2)}`]
+        ? [l.itemName, `${l.qty} ${l.unit}`, formatPdfINR(l.amount)]
+        : [(idx + 1).toString(), l.itemName, `${l.qty} ${l.unit}`, formatPdfINR(l.rate), formatPdfINR(l.amount)]
     );
 
     autoTable(doc, {
@@ -175,13 +176,13 @@ export function generateInvoicePdf(
     y = ((doc as any).lastAutoTable?.finalY || y + 30) + 3;
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(is58 ? 7.5 : 8.5);
-    doc.text(`Total: Rs.${paiseToRupees(invoice.total).toFixed(2)}`, width - 5, y, { align: 'right' });
+    doc.text(`Total: ${formatPdfINR(invoice.total)}`, width - 5, y, { align: 'right' });
     y += 4;
-    doc.text(`Paid: Rs.${paiseToRupees(invoice.paidAmount).toFixed(2)}`, width - 5, y, { align: 'right' });
+    doc.text(`Paid: ${formatPdfINR(invoice.paidAmount)}`, width - 5, y, { align: 'right' });
     y += 4;
     const due = Math.max(0, invoice.total - invoice.paidAmount);
     doc.setFont('helvetica', 'bold');
-    doc.text(`Balance Due: Rs.${paiseToRupees(due).toFixed(2)}`, width - 5, y, { align: 'right' });
+    doc.text(`Balance Due: ${formatPdfINR(due)}`, width - 5, y, { align: 'right' });
     y += 6;
 
     if (qrDataUrl && printSettings.showQr !== false) {
@@ -282,8 +283,9 @@ export function generateInvoicePdf(
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   doc.setTextColor(greyColor[0], greyColor[1], greyColor[2]);
-  if (party?.phone) {
-    doc.text(`Phone: +91 ${party.phone}`, 14, 66);
+  const phoneToDisplay = invoice.customerPhone || party?.phone;
+  if (phoneToDisplay) {
+    doc.text(`Phone: +91 ${phoneToDisplay}`, 14, 66);
   }
   if (party?.address) {
     doc.text(`Address: ${party.address}`, 14, 71, { maxWidth: 95 });
@@ -298,44 +300,44 @@ export function generateInvoicePdf(
   let colStyles: Record<number, any>;
 
   if (withGst) {
-    headers = ['#', 'Item Description', 'HSN', 'Qty', 'Rate', 'Disc', 'GST %', 'Amount'];
+    headers = ['#', 'Item Description', 'HSN', 'Qty', 'Rate (Rs.)', 'Disc', 'GST %', 'Amount (Rs.)'];
     tableData = invoice.lines.map((line, idx) => [
       (idx + 1).toString(),
       line.itemName,
-      line.hsn || '—',
+      line.hsn || '-',
       `${line.qty} ${line.unit}`,
-      `₹${paiseToRupees(line.rate).toFixed(2)}`,
-      line.discountPercent > 0 ? `${line.discountPercent}%` : '—',
+      formatPdfINR(line.rate),
+      line.discountPercent > 0 ? `${line.discountPercent}%` : '-',
       `${line.taxPercent}%`,
-      `₹${paiseToRupees(line.amount).toFixed(2)}`,
+      formatPdfINR(line.amount),
     ]);
     colStyles = {
       0: { cellWidth: 8, halign: 'center' },
-      1: { cellWidth: 55 },
-      2: { cellWidth: 18, halign: 'center' },
+      1: { cellWidth: 'auto', halign: 'left' },
+      2: { cellWidth: 16, halign: 'center' },
       3: { cellWidth: 18, halign: 'center' },
-      4: { cellWidth: 22, halign: 'right' },
-      5: { cellWidth: 16, halign: 'center' },
+      4: { cellWidth: 24, halign: 'right' },
+      5: { cellWidth: 15, halign: 'center' },
       6: { cellWidth: 16, halign: 'center' },
-      7: { cellWidth: 29, halign: 'right' },
+      7: { cellWidth: 32, halign: 'right' },
     };
   } else {
-    headers = ['#', 'Item Description', 'Qty', 'Unit Price', 'Disc', 'Total Amount'];
+    headers = ['#', 'Item Description', 'Qty', 'Rate (Rs.)', 'Disc', 'Amount (Rs.)'];
     tableData = invoice.lines.map((line, idx) => [
       (idx + 1).toString(),
       line.itemName,
       `${line.qty} ${line.unit}`,
-      `₹${paiseToRupees(line.rate).toFixed(2)}`,
-      line.discountPercent > 0 ? `${line.discountPercent}%` : '—',
-      `₹${paiseToRupees(line.amount).toFixed(2)}`,
+      formatPdfINR(line.rate),
+      line.discountPercent > 0 ? `${line.discountPercent}%` : '-',
+      formatPdfINR(line.amount),
     ]);
     colStyles = {
       0: { cellWidth: 10, halign: 'center' },
-      1: { cellWidth: 85 },
+      1: { cellWidth: 'auto', halign: 'left' },
       2: { cellWidth: 25, halign: 'center' },
-      3: { cellWidth: 27, halign: 'right' },
-      4: { cellWidth: 15, halign: 'center' },
-      5: { cellWidth: 20, halign: 'right' },
+      3: { cellWidth: 26, halign: 'right' },
+      4: { cellWidth: 18, halign: 'center' },
+      5: { cellWidth: 32, halign: 'right' },
     };
   }
 
@@ -344,15 +346,17 @@ export function generateInvoicePdf(
     head: [headers],
     body: tableData,
     theme: 'grid',
+    margin: { left: 14, right: 14 },
     headStyles: {
       fillColor: [79, 70, 229],
       textColor: [255, 255, 255],
       fontStyle: 'bold',
       fontSize: 8.5,
+      halign: 'center',
     },
     styles: {
       fontSize: 8,
-      cellPadding: 2.5,
+      cellPadding: { top: 2.5, right: 3, bottom: 2.5, left: 3 },
       textColor: [15, 23, 42],
     },
     columnStyles: colStyles,
@@ -438,61 +442,118 @@ export function generateInvoicePdf(
   }
 
   // Right column: Totals summary card
-  const summaryX = 125;
-  const summaryWidth = 71;
-  let currentY = finalY + 8;
-
-  const addSummaryRow = (label: string, value: string, isBold: boolean = false, isAccent: boolean = false) => {
-    doc.setFont('helvetica', isBold ? 'bold' : 'normal');
-    doc.setFontSize(isBold ? 9.5 : 8.5);
-    doc.setTextColor(
-      isAccent ? primaryColor[0] : slateColor[0],
-      isAccent ? primaryColor[1] : slateColor[1],
-      isAccent ? primaryColor[2] : slateColor[2]
-    );
-    doc.text(label, summaryX, currentY);
-    doc.text(value, summaryX + summaryWidth, currentY, { align: 'right' });
-    currentY += 5.5;
-  };
-
-  addSummaryRow('Subtotal', formatINR(invoice.subtotal));
-  if (invoice.discountTotal > 0 && printSettings?.showDiscount !== false) {
-    addSummaryRow('Total Discount', `−${formatINR(invoice.discountTotal)}`);
+  interface SummaryRowItem {
+    label: string;
+    value: string;
+    isBold?: boolean;
+    isGrandTotal?: boolean;
+    isBalanceDue?: boolean;
+    duePositive?: boolean;
   }
+
+  const summaryRows: SummaryRowItem[] = [];
+  summaryRows.push({ label: 'Subtotal:', value: formatPdfINR(invoice.subtotal) });
+
+  if (invoice.discountTotal > 0 && printSettings?.showDiscount !== false) {
+    summaryRows.push({ label: 'Total Discount:', value: `-${formatPdfINR(invoice.discountTotal)}` });
+  }
+
   if (withGst && printSettings?.showTax !== false) {
     if (invoice.taxableAmount) {
-      addSummaryRow('Taxable Amount', formatINR(invoice.taxableAmount));
+      summaryRows.push({ label: 'Taxable Amount:', value: formatPdfINR(invoice.taxableAmount) });
     }
     if (invoice.cgstTotal && invoice.cgstTotal > 0) {
-      addSummaryRow('CGST', `+${formatINR(invoice.cgstTotal)}`);
+      summaryRows.push({ label: 'CGST:', value: `+${formatPdfINR(invoice.cgstTotal)}` });
     }
     if (invoice.sgstTotal && invoice.sgstTotal > 0) {
-      addSummaryRow('SGST', `+${formatINR(invoice.sgstTotal)}`);
+      summaryRows.push({ label: 'SGST:', value: `+${formatPdfINR(invoice.sgstTotal)}` });
     }
     if (invoice.igstTotal && invoice.igstTotal > 0) {
-      addSummaryRow('IGST', `+${formatINR(invoice.igstTotal)}`);
+      summaryRows.push({ label: 'IGST:', value: `+${formatPdfINR(invoice.igstTotal)}` });
     }
   }
+
   if (invoice.extraCharges && invoice.extraCharges > 0) {
-    addSummaryRow('Extra Charges', `+${formatINR(invoice.extraCharges)}`);
+    summaryRows.push({ label: 'Extra Charges:', value: `+${formatPdfINR(invoice.extraCharges)}` });
   }
+
   if (invoice.roundOff !== 0) {
-    addSummaryRow(
-      'Round Off',
-      `${invoice.roundOff > 0 ? '+' : '−'}${formatINR(Math.abs(invoice.roundOff))}`
-    );
+    summaryRows.push({
+      label: 'Round Off:',
+      value: `${invoice.roundOff > 0 ? '+' : '-'}${formatPdfINR(Math.abs(invoice.roundOff))}`,
+    });
   }
 
-  doc.setDrawColor(226, 232, 240);
-  doc.line(summaryX, currentY - 1.5, summaryX + summaryWidth, currentY - 1.5);
-  currentY += 1;
+  // Grand Total row
+  summaryRows.push({ label: 'Grand Total:', value: formatPdfINR(invoice.total), isBold: true, isGrandTotal: true });
 
-  addSummaryRow('Grand Total', formatINR(invoice.total), true, true);
-  addSummaryRow('Paid / Received', formatINR(invoice.paidAmount));
+  // Paid row
+  summaryRows.push({ label: 'Paid / Received:', value: formatPdfINR(invoice.paidAmount) });
 
+  // Balance Due row
   const due = Math.max(0, invoice.total - invoice.paidAmount);
   if (printSettings?.showBalanceDue !== false) {
-    addSummaryRow('Balance Due', formatINR(due), true, due > 0);
+    summaryRows.push({
+      label: 'Balance Due:',
+      value: formatPdfINR(due),
+      isBold: true,
+      isBalanceDue: true,
+      duePositive: due > 0,
+    });
+  }
+
+  const boxX = 120;
+  const boxWidth = 76;
+  const boxY = finalY + 8;
+  const boxHeight = summaryRows.length * 5.6 + 6;
+
+  // Background and border card for Totals Box
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.4);
+  doc.roundedRect(boxX, boxY, boxWidth, boxHeight, 2.5, 2.5, 'FD');
+
+  let rowY = boxY + 5;
+  const leftPad = boxX + 4;
+  const rightPad = boxX + boxWidth - 4;
+
+  for (const r of summaryRows) {
+    if (r.isGrandTotal) {
+      // Divider before Grand Total
+      doc.setDrawColor(203, 213, 225);
+      doc.setLineWidth(0.3);
+      doc.line(boxX + 2, rowY - 2, boxX + boxWidth - 2, rowY - 2);
+
+      // Highlight bar for Grand Total
+      doc.setFillColor(238, 242, 255);
+      doc.rect(boxX + 0.5, rowY - 1.2, boxWidth - 1, 6.2, 'F');
+
+      rowY += 3.2;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+      doc.text(r.label, leftPad, rowY);
+      doc.text(r.value, rightPad, rowY, { align: 'right' });
+      rowY += 5.5;
+    } else if (r.isBalanceDue) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      if (r.duePositive) {
+        doc.setTextColor(220, 38, 38);
+      } else {
+        doc.setTextColor(22, 101, 52);
+      }
+      doc.text(r.label, leftPad, rowY);
+      doc.text(r.value, rightPad, rowY, { align: 'right' });
+      rowY += 5.2;
+    } else {
+      doc.setFont('helvetica', r.isBold ? 'bold' : 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(slateColor[0], slateColor[1], slateColor[2]);
+      doc.text(r.label, leftPad, rowY);
+      doc.text(r.value, rightPad, rowY, { align: 'right' });
+      rowY += 5.2;
+    }
   }
 
   // Footer & Authorized Signatory
@@ -561,18 +622,18 @@ export function generatePartyStatementPdf(
   doc.setFontSize(10.5);
   if (netBal >= 0) {
     doc.setTextColor(22, 163, 74);
-    doc.text(`Net: You'll get ${formatINR(netBal)}`, 190, 42, { align: 'right' });
+    doc.text(`Net: You'll get ${formatPdfINR(netBal)}`, 190, 42, { align: 'right' });
   } else {
     doc.setTextColor(220, 38, 38);
-    doc.text(`Net: You'll give ${formatINR(Math.abs(netBal))}`, 190, 42, { align: 'right' });
+    doc.text(`Net: You'll give ${formatPdfINR(Math.abs(netBal))}`, 190, 42, { align: 'right' });
   }
 
   const tableData = entries.map((e) => [
     e.date,
     e.description,
-    e.debit > 0 ? `₹${paiseToRupees(e.debit).toFixed(2)}` : '—',
-    e.credit > 0 ? `₹${paiseToRupees(e.credit).toFixed(2)}` : '—',
-    `₹${paiseToRupees(Math.abs(e.runningBalance)).toFixed(2)} ${e.runningBalance >= 0 ? 'Dr' : 'Cr'}`,
+    e.debit > 0 ? formatPdfINR(e.debit) : '-',
+    e.credit > 0 ? formatPdfINR(e.credit) : '-',
+    `${formatPdfINR(Math.abs(e.runningBalance))} ${e.runningBalance >= 0 ? 'Dr' : 'Cr'}`,
   ]);
 
   autoTable(doc, {
@@ -643,15 +704,15 @@ export function generateRegisterPdf(
       inv.date,
       inv.number,
       inv.partyName,
-      `₹${paiseToRupees(inv.taxTotal).toFixed(2)}`,
-      `₹${paiseToRupees(inv.total).toFixed(2)}`,
+      formatPdfINR(inv.taxTotal),
+      formatPdfINR(inv.total),
       inv.paidAmount >= inv.total ? 'Paid' : inv.paidAmount > 0 ? 'Partial' : 'Unpaid',
     ];
   });
 
   autoTable(doc, {
     startY: 32,
-    head: [['#', 'Date', 'Invoice No', 'Party Name', 'Tax (₹)', 'Grand Total (₹)', 'Status']],
+    head: [['#', 'Date', 'Invoice No', 'Party Name', 'Tax (Rs.)', 'Grand Total (Rs.)', 'Status']],
     body: tableData,
     theme: 'striped',
     headStyles: {
@@ -679,7 +740,7 @@ export function generateRegisterPdf(
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(15, 23, 42);
-  doc.text(`Total Amount: ${formatINR(totalPaise)}`, 196, finalY + 10, { align: 'right' });
+  doc.text(`Total Amount: ${formatPdfINR(totalPaise)}`, 196, finalY + 10, { align: 'right' });
 
   return doc;
 }
@@ -693,6 +754,7 @@ export interface ShareBillPdfOptions {
   messageTemplate?: string;
   printSettings?: PrintSettings;
   viewLink?: string;
+  forceNativeSheet?: boolean;
 }
 
 /**
@@ -723,32 +785,33 @@ export function generateDayBookPdf(
   doc.setFontSize(9);
   doc.setTextColor(100, 116, 139);
   doc.text(`Date: ${formatFullDate(date)}`, 14, 29);
-  doc.text(`Total In: ${formatINR(totals.totalIn)} | Total Out: ${formatINR(totals.totalOut)} | Net: ${formatINR(totals.net)}`, 196, 29, { align: 'right' });
+  doc.text(`Total In: ${formatPdfINR(totals.totalIn)} | Total Out: ${formatPdfINR(totals.totalOut)} | Net: ${formatPdfINR(totals.net)}`, 196, 29, { align: 'right' });
 
   const tableData = entries.map((e, idx) => [
     (idx + 1).toString(),
-    e.time || '—',
+    e.time || '-',
     e.type.replace('_', ' '),
-    e.partyName || '—',
-    e.refNumber || '—',
+    e.partyName || '-',
+    e.refNumber || '-',
     e.mode,
-    e.inflow > 0 ? `+${formatINR(e.inflow)}` : '—',
-    e.outflow > 0 ? `−${formatINR(e.outflow)}` : '—',
+    e.inflow > 0 ? `+${formatPdfINR(e.inflow)}` : '-',
+    e.outflow > 0 ? `-${formatPdfINR(e.outflow)}` : '-',
   ]);
 
   autoTable(doc, {
     startY: 34,
-    head: [['#', 'Time', 'Type', 'Party / Description', 'Ref #', 'Mode', 'Money In (₹)', 'Money Out (₹)']],
+    head: [['#', 'Time', 'Type', 'Party / Description', 'Ref #', 'Mode', 'Money In (Rs.)', 'Money Out (Rs.)']],
     body: tableData,
     theme: 'striped',
+    margin: { left: 14, right: 14 },
     headStyles: { fillColor: [79, 70, 229], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
     styles: { fontSize: 8, cellPadding: 2.5 },
     columnStyles: {
       0: { cellWidth: 8, halign: 'center' },
       1: { cellWidth: 16 },
-      2: { cellWidth: 26 },
-      3: { cellWidth: 54 },
-      4: { cellWidth: 24 },
+      2: { cellWidth: 24 },
+      3: { cellWidth: 48 },
+      4: { cellWidth: 22 },
       5: { cellWidth: 18, halign: 'center' },
       6: { cellWidth: 22, halign: 'right' },
       7: { cellWidth: 22, halign: 'right' },
@@ -759,7 +822,7 @@ export function generateDayBookPdf(
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
   doc.setTextColor(15, 23, 42);
-  doc.text(`Net Day Position: ${formatINR(totals.net)}`, 196, finalY + 10, { align: 'right' });
+  doc.text(`Net Day Position: ${formatPdfINR(totals.net)}`, 196, finalY + 10, { align: 'right' });
 
   return doc;
 }
@@ -794,12 +857,12 @@ export function generateBalanceSheetPdf(
   doc.text(`Status: ${data.isBalanced ? 'Balanced' : 'Unbalanced'}`, 196, 29, { align: 'right' });
 
   const rows = [
-    ['LIABILITIES & OWNER EQUITY', 'AMOUNT (₹)', 'ASSETS', 'AMOUNT (₹)'],
-    ['Sundry Creditors (Payables)', formatINR(data.liabilities.sundryCreditors), 'Cash in Hand', formatINR(data.assets.cashInHand)],
-    ['Capital & Opening Reserves', formatINR(data.liabilities.capitalAndReserves), 'Bank Accounts', formatINR(data.assets.totalBank)],
-    ['Net Profit / Loss Carried In', formatINR(data.liabilities.netProfitCarriedIn), 'Sundry Debtors (Receivables)', formatINR(data.assets.sundryDebtors)],
-    ['', '', 'Closing Stock Valuation', formatINR(data.assets.closingStockValue)],
-    ['TOTAL LIABILITIES', formatINR(data.liabilities.totalLiabilities), 'TOTAL ASSETS', formatINR(data.assets.totalAssets)],
+    ['LIABILITIES & OWNER EQUITY', 'AMOUNT (Rs.)', 'ASSETS', 'AMOUNT (Rs.)'],
+    ['Sundry Creditors (Payables)', formatPdfINR(data.liabilities.sundryCreditors), 'Cash in Hand', formatPdfINR(data.assets.cashInHand)],
+    ['Capital & Opening Reserves', formatPdfINR(data.liabilities.capitalAndReserves), 'Bank Accounts', formatPdfINR(data.assets.totalBank)],
+    ['Net Profit / Loss Carried In', formatPdfINR(data.liabilities.netProfitCarriedIn), 'Sundry Debtors (Receivables)', formatPdfINR(data.assets.sundryDebtors)],
+    ['', '', 'Closing Stock Valuation', formatPdfINR(data.assets.closingStockValue)],
+    ['TOTAL LIABILITIES', formatPdfINR(data.liabilities.totalLiabilities), 'TOTAL ASSETS', formatPdfINR(data.assets.totalAssets)],
   ];
 
   autoTable(doc, {
@@ -861,29 +924,30 @@ export function generateBillWisePnlPdf(
       r.billNumber,
       r.date,
       r.customerName,
-      `₹${(r.saleAmount / 100).toFixed(2)}`,
-      `₹${(r.costAmount / 100).toFixed(2)}`,
-      `₹${(r.profitAmount / 100).toFixed(2)}`,
+      formatPdfINR(r.saleAmount),
+      formatPdfINR(r.costAmount),
+      formatPdfINR(r.profitAmount),
       `${r.marginPercent.toFixed(1)}%`,
     ];
   });
 
   autoTable(doc, {
     startY: 34,
-    head: [['#', 'Bill No', 'Date', 'Customer', 'Sale (₹)', 'Cost (₹)', 'P/L (₹)', 'Margin']],
+    head: [['#', 'Bill No', 'Date', 'Customer', 'Sale (Rs.)', 'Cost (Rs.)', 'P/L (Rs.)', 'Margin']],
     body: tableData,
     theme: 'striped',
+    margin: { left: 14, right: 14 },
     headStyles: { fillColor: [79, 70, 229], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 8.5 },
     styles: { fontSize: 8, cellPadding: 2.5 },
     columnStyles: {
       0: { cellWidth: 8, halign: 'center' },
-      1: { cellWidth: 28 },
-      2: { cellWidth: 22 },
-      3: { cellWidth: 52 },
+      1: { cellWidth: 25 },
+      2: { cellWidth: 20 },
+      3: { cellWidth: 46 },
       4: { cellWidth: 22, halign: 'right' },
       5: { cellWidth: 22, halign: 'right' },
       6: { cellWidth: 22, halign: 'right' },
-      7: { cellWidth: 16, halign: 'center' },
+      7: { cellWidth: 15, halign: 'center' },
     },
   });
 
@@ -892,7 +956,7 @@ export function generateBillWisePnlPdf(
   doc.setFontSize(9.5);
   doc.setTextColor(15, 23, 42);
   const avgMargin = totalSale > 0 ? ((totalProfit / totalSale) * 100).toFixed(1) : '0';
-  doc.text(`Total Sale: ${formatINR(totalSale)} | Total Cost: ${formatINR(totalCost)} | Net Profit: ${formatINR(totalProfit)} (${avgMargin}%)`, 196, finalY + 9, { align: 'right' });
+  doc.text(`Total Sale: ${formatPdfINR(totalSale)} | Total Cost: ${formatPdfINR(totalCost)} | Net Profit: ${formatPdfINR(totalProfit)} (${avgMargin}%)`, 196, finalY + 9, { align: 'right' });
 
   return doc;
 }
@@ -910,7 +974,7 @@ export async function generateInvoiceImageFile(
     .replace(/[^a-zA-Z0-9.-]/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
-  const cleanCustomer = (party?.name || invoice.partyName || 'Customer')
+  const cleanCustomer = (invoice.partyName || party?.name || 'Customer')
     .trim()
     .replace(/[^a-zA-Z0-9.-]/g, '-')
     .replace(/-+/g, '-')
@@ -922,7 +986,7 @@ export async function generateInvoiceImageFile(
 
   if (typeof document !== 'undefined') {
     const shopName = printSettings?.shopName || business.name || 'Shree Sweet';
-    const partyName = party?.name || invoice.partyName || 'Customer';
+    const partyName = invoice.partyName || party?.name || 'Customer';
     const dueAmount = Math.max(0, invoice.total - invoice.paidAmount);
 
     const container = document.createElement('div');
@@ -963,7 +1027,7 @@ export async function generateInvoiceImageFile(
       <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 18px; margin-bottom: 24px;">
         <span style="font-size: 11px; font-weight: 700; color: #6366f1; text-transform: uppercase; letter-spacing: 0.5px;">BILLED TO</span>
         <h3 style="margin: 4px 0 0; font-size: 17px; font-weight: 700; color: #0f172a;">${partyName}</h3>
-        <p style="margin: 2px 0 0; font-size: 13px; color: #64748b;">Phone: +91 ${party?.phone || 'N/A'}</p>
+        <p style="margin: 2px 0 0; font-size: 13px; color: #64748b;">Phone: +91 ${invoice.customerPhone || party?.phone || 'N/A'}</p>
       </div>
 
       <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
@@ -1058,13 +1122,14 @@ export async function shareBillPdfFile({
   messageTemplate,
   printSettings,
   viewLink,
+  forceNativeSheet = false,
 }: ShareBillPdfOptions): Promise<{ success: boolean; message: string; fileName: string; sharedViaNativeSheet: boolean }> {
   // Format clean file name: Invoice-[InvoiceNo]-[CustomerName].pdf
   const cleanInvNo = (invoice.number || 'BILL')
     .replace(/[^a-zA-Z0-9.-]/g, '-')
     .replace(/-+/g, '-')
     .replace(/^-|-$/g, '');
-  const cleanCustomer = (party?.name || invoice.partyName || 'Customer')
+  const cleanCustomer = (invoice.partyName || party?.name || 'Customer')
     .trim()
     .replace(/[^a-zA-Z0-9.-]/g, '-')
     .replace(/-+/g, '-')
@@ -1088,7 +1153,8 @@ export async function shareBillPdfFile({
   if (format === 'LINK') {
     const resolvedLink = viewLink || (typeof window !== 'undefined' ? `${window.location.origin}/?view_invoice=${invoice.id}` : `https://legerly-an-accounting-app.vercel.app/?view_invoice=${invoice.id}`);
     const caption = formatInvoiceMessageTemplate(templateToUse, invoice, business, party, resolvedLink);
-    const phone = party?.phone ? party.phone.replace(/\D/g, '') : '';
+    const rawPhone = invoice.customerPhone || party?.phone || '';
+    const phone = normalizePhoneNumber(rawPhone);
     const waUrl = phone
       ? `https://wa.me/91${phone}?text=${encodeURIComponent(caption)}`
       : `https://wa.me/?text=${encodeURIComponent(caption)}`;
@@ -1099,7 +1165,7 @@ export async function shareBillPdfFile({
 
     return {
       success: true,
-      message: `Invoice view link created and opened in WhatsApp.`,
+      message: `Invoice link opened in WhatsApp chat for ${cleanCustomer}.`,
       fileName: `${cleanInvNo}-link`,
       sharedViaNativeSheet: false,
     };
@@ -1110,7 +1176,7 @@ export async function shareBillPdfFile({
     const imgFile = await generateInvoiceImageFile(invoice, business, party, printSettings);
     const caption = formatInvoiceMessageTemplate(templateToUse, invoice, business, party);
 
-    if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+    if (forceNativeSheet && typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
       const canShare = typeof navigator.canShare === 'function' && navigator.canShare({ files: [imgFile] });
       if (canShare) {
         try {
@@ -1138,20 +1204,20 @@ export async function shareBillPdfFile({
       }
     }
 
-    // Fallback: Download JPG and open WhatsApp
-    const phone = party?.phone ? party.phone.replace(/\D/g, '') : '';
+    // Direct WhatsApp customer chat
+    const rawPhone = invoice.customerPhone || party?.phone || '';
+    const phone = normalizePhoneNumber(rawPhone);
     const waUrl = phone
       ? `https://wa.me/91${phone}?text=${encodeURIComponent(caption + `\n\n(Note: "${imgFile.name}" downloaded to your device; please attach it here).`)}`
       : `https://wa.me/?text=${encodeURIComponent(caption + `\n\n(Note: "${imgFile.name}" downloaded to your device; please attach it here).`)}`;
     
     if (typeof window !== 'undefined') {
       window.open(waUrl, '_blank');
-      alert(`Image saved (${imgFile.name}). Please attach it in WhatsApp.`);
     }
 
     return {
       success: true,
-      message: `Image saved. Please attach in WhatsApp.`,
+      message: `Image saved. Opened WhatsApp chat for ${cleanCustomer}.`,
       fileName: imgFile.name,
       sharedViaNativeSheet: false,
     };
@@ -1175,8 +1241,8 @@ export async function shareBillPdfFile({
 
   const caption = formatInvoiceMessageTemplate(templateToUse, invoice, business, party);
 
-  // 1. Native Web Share API with actual PDF File attached directly
-  if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+  // 1. Native Web Share API if explicitly requested (e.g. from Share Sheet button)
+  if (forceNativeSheet && typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
     const canShareFiles = typeof navigator.canShare === 'function' && navigator.canShare({ files: [pdfFile] });
     if (canShareFiles) {
       try {
@@ -1187,7 +1253,7 @@ export async function shareBillPdfFile({
         });
         return {
           success: true,
-          message: `Invoice PDF (${fileName}) attached and shared directly.`,
+          message: `Invoice PDF (${fileName}) shared via system sheet.`,
           fileName,
           sharedViaNativeSheet: true,
         };
@@ -1205,14 +1271,15 @@ export async function shareBillPdfFile({
     }
   }
 
-  // 2. Fallback: If direct file sharing is not supported, download the file and open WhatsApp link
+  // 2. Direct WhatsApp Customer Chat: Save PDF and open WhatsApp chat of customer directly
   try {
     doc.save(fileName);
   } catch (err) {
-    console.warn('Fallback save error:', err);
+    console.warn('PDF save error:', err);
   }
 
-  const phone = party?.phone ? party.phone.replace(/\D/g, '') : '';
+  const rawPhone = invoice.customerPhone || party?.phone || '';
+  const phone = normalizePhoneNumber(rawPhone);
   const fallbackText = encodeURIComponent(
     `${caption}\n\n(📄 Note: "${fileName}" has been downloaded to your device; please attach it here).`
   );
@@ -1224,14 +1291,9 @@ export async function shareBillPdfFile({
     window.open(waUrl, '_blank');
   }
 
-  const fallbackMsg = `File saved (${fileName}). Direct file sharing is not supported by this browser; opening WhatsApp with message. Please attach the downloaded PDF.`;
-  if (typeof window !== 'undefined' && typeof window.alert === 'function') {
-    window.alert(fallbackMsg);
-  }
-
   return {
     success: true,
-    message: fallbackMsg,
+    message: `PDF saved (${fileName}). WhatsApp chat opened for ${cleanCustomer}.`,
     fileName,
     sharedViaNativeSheet: false,
   };

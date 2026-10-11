@@ -427,26 +427,30 @@ export const PrintSettingsModal: React.FC = () => {
                   </tbody>
                 </table>
 
-                {/* Totals */}
-                <div className="pt-2 border-t border-slate-200 space-y-1 text-right text-[11px]">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Subtotal:</span>
-                    <span className="font-semibold">₹11,470.00</span>
+                {/* Totals Summary Box Card */}
+                <div className="mt-2 bg-slate-50/70 border border-slate-200 rounded-xl p-2.5 space-y-1.5 text-[11px]">
+                  <div className="flex justify-between items-center text-slate-600">
+                    <span>Subtotal:</span>
+                    <span className="font-semibold text-slate-800">Rs. 11,470.00</span>
                   </div>
                   {formData.showTax && (
-                    <div className="flex justify-between text-blue-600">
+                    <div className="flex justify-between items-center text-blue-600">
                       <span>GST (5%):</span>
-                      <span>₹573.50</span>
+                      <span className="font-semibold">+Rs. 573.50</span>
                     </div>
                   )}
-                  <div className="flex justify-between text-sm font-extrabold text-slate-900 pt-1 border-t border-slate-200">
+                  <div className="flex justify-between items-center text-xs font-extrabold text-blue-700 pt-1.5 border-t border-slate-200 bg-indigo-50/60 -mx-1.5 px-1.5 py-1 rounded-lg">
                     <span>Grand Total:</span>
-                    <span>₹11,470.00</span>
+                    <span>Rs. 12,043.50</span>
+                  </div>
+                  <div className="flex justify-between items-center text-slate-600">
+                    <span>Paid / Received:</span>
+                    <span className="font-semibold text-emerald-700">Rs. 12,043.50</span>
                   </div>
                   {formData.showBalanceDue && (
-                    <div className="flex justify-between font-bold text-emerald-600">
+                    <div className="flex justify-between items-center font-bold text-emerald-600">
                       <span>Balance Due:</span>
-                      <span>₹0.00</span>
+                      <span>Rs. 0.00</span>
                     </div>
                   )}
                 </div>

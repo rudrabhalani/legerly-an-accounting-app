@@ -20,8 +20,8 @@ import {
 } from '../../utils/formatters';
 import { INDIAN_STATES, isInterStateSupply } from '../../data/indianStates';
 import { calculateLineGST, calculateInvoiceTotals } from '../../utils/gstCalc';
-import { generateInvoicePdf, shareBillPdfFile } from '../../services/pdfService';
-import { pickMobileContacts } from '../../utils/contactPicker';
+import { generateInvoicePdf, shareBillPdfFile, formatInvoiceMessageTemplate } from '../../services/pdfService';
+import { pickMobileContacts, normalizePhoneNumber } from '../../utils/contactPicker';
 import {
   X,
   Plus,
@@ -86,6 +86,8 @@ export const InvoiceScreen: React.FC = () => {
 
   // Header
   const [partyId, setPartyId] = useState('');
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [date, setDate] = useState(getTodayDateString());
   const [dueDate, setDueDate] = useState(getTodayDateString());
@@ -181,6 +183,8 @@ export const InvoiceScreen: React.FC = () => {
       if (activeInvoiceToEdit) {
         setType(activeInvoiceToEdit.type);
         setPartyId(activeInvoiceToEdit.partyId);
+        setCustomerName(activeInvoiceToEdit.partyName || '');
+        setCustomerPhone(activeInvoiceToEdit.customerPhone || '');
         setInvoiceNumber(activeInvoiceToEdit.number);
         setDate(activeInvoiceToEdit.date);
         setDueDate(activeInvoiceToEdit.dueDate);
@@ -197,7 +201,10 @@ export const InvoiceScreen: React.FC = () => {
       } else {
         const initialType = mode || 'SALE';
         setType(initialType);
-        setPartyId(parties[0]?.id || '');
+        const firstP = parties.find((p) => !p.isDeleted);
+        setPartyId(firstP?.id || '');
+        setCustomerName(firstP?.name || '');
+        setCustomerPhone(firstP?.phone || '');
         setInvoiceNumber(generateNextNumber(initialType));
         setDate(getTodayDateString());
         setDueDate(getTodayDateString());
@@ -404,6 +411,8 @@ export const InvoiceScreen: React.FC = () => {
       openingType: type === 'SALE' ? 'RECEIVABLE' : 'PAYABLE',
     });
     setPartyId(created.id);
+    setCustomerName(created.name);
+    setCustomerPhone(created.phone || '');
     setShowQuickPartyModal(false);
     setNewPartyName('');
     setNewPartyPhone('');
@@ -425,6 +434,8 @@ export const InvoiceScreen: React.FC = () => {
       );
       if (created.length > 0) {
         setPartyId(created[0].id);
+        setCustomerName(contacts[0].name);
+        setCustomerPhone(contacts[0].phone);
         setPartySearchTerm('');
       }
     }
@@ -435,6 +446,8 @@ export const InvoiceScreen: React.FC = () => {
     if (contacts.length > 0) {
       setNewPartyName(contacts[0].name);
       setNewPartyPhone(contacts[0].phone);
+      setCustomerName(contacts[0].name);
+      setCustomerPhone(contacts[0].phone);
     }
   };
 
@@ -502,10 +515,35 @@ export const InvoiceScreen: React.FC = () => {
 
   // Validate and Save Invoice
   const validateAndPrepare = () => {
-    if (!partyId) {
-      alert('Please select or add a party.');
-      return null;
+    let finalPartyId = partyId;
+    let finalPartyName = customerName.trim();
+    const finalCustomerPhone = customerPhone.trim();
+
+    if (!finalPartyId) {
+      if (!finalPartyName) {
+        alert('Please enter or select a customer/party name.');
+        return null;
+      }
+      const existing = parties.find(
+        (p) => !p.isDeleted && p.name.toLowerCase() === finalPartyName.toLowerCase()
+      );
+      if (existing) {
+        finalPartyId = existing.id;
+      } else {
+        const created = addParty({
+          name: finalPartyName,
+          phone: finalCustomerPhone,
+          type: type === 'SALE' ? 'CUSTOMER' : 'SUPPLIER',
+          openingBalance: 0,
+          openingType: type === 'SALE' ? 'RECEIVABLE' : 'PAYABLE',
+        });
+        finalPartyId = created.id;
+      }
+    } else if (!finalPartyName) {
+      const party = parties.find((p) => p.id === finalPartyId);
+      finalPartyName = party?.name || 'Customer';
     }
+
     if (lines.length === 0) {
       alert('Please add at least one item line.');
       return null;
@@ -515,8 +553,7 @@ export const InvoiceScreen: React.FC = () => {
       return null;
     }
 
-    const party = parties.find((p) => p.id === partyId);
-    const partyName = party?.name || 'Party';
+    const party = parties.find((p) => p.id === finalPartyId);
     const paidPaise = rupeesToPaise(parseFloat(paidAmountStr) || 0);
 
     let mappedPaymentMode: PaymentMode = 'CASH';
@@ -543,8 +580,9 @@ export const InvoiceScreen: React.FC = () => {
     return {
       type,
       number: invoiceNumber.trim(),
-      partyId,
-      partyName,
+      partyId: finalPartyId,
+      partyName: finalPartyName,
+      customerPhone: finalCustomerPhone || party?.phone || undefined,
       date,
       dueDate,
       paymentTerms,
@@ -591,8 +629,45 @@ export const InvoiceScreen: React.FC = () => {
     confetti({ particleCount: 40, spread: 60, origin: { y: 0.8 } });
 
     if (andShare) {
-      closeInvoiceScreen();
-      openShareInvoiceModal(invoice);
+      setIsSharingPdf(true);
+      try {
+        const partyObj = parties.find((p) => p.id === invoice.partyId);
+        const defaultBankAcc = accounts.find((a) => a.id === invoice.accountId && a.type === 'BANK') || accounts.find((a) => a.type === 'BANK');
+        const printSettings = useLedgerlyStore.getState().printSettings;
+
+        // 1. Generate & download the PDF file with the exact billed name
+        const cleanInvNo = (invoice.number || 'BILL').replace(/[^a-zA-Z0-9.-]/g, '-');
+        const cleanCust = (invoice.partyName || partyObj?.name || 'Customer').trim().replace(/[^a-zA-Z0-9.-]/g, '-');
+        const fileName = `Invoice-${cleanInvNo}-${cleanCust}.pdf`;
+        
+        const doc = generateInvoicePdf(invoice, business, partyObj, defaultBankAcc, printSettings);
+        doc.save(fileName);
+
+        // 2. Format WhatsApp caption
+        const defaultTemplate = printSettings?.messageTemplate ||
+          'Dear {customer_name}, here is your Bill #{bill_no} of ₹{total} from {shop_name}. Balance due: ₹{balance}. Thank you!';
+        const caption = formatInvoiceMessageTemplate(defaultTemplate, invoice, business, partyObj);
+
+        // 3. Resolve customer phone number
+        const rawPhone = invoice.customerPhone || partyObj?.phone || '';
+        const cleanPhone = normalizePhoneNumber(rawPhone);
+
+        // 4. Directly open customer's chat in WhatsApp
+        const waText = encodeURIComponent(`${caption}\n\n(📄 Note: "${fileName}" has been downloaded to your device; please attach it here).`);
+        const waUrl = cleanPhone
+          ? `https://wa.me/91${cleanPhone}?text=${waText}`
+          : `https://wa.me/?text=${waText}`;
+
+        if (typeof window !== 'undefined') {
+          window.open(waUrl, '_blank');
+        }
+
+        closeInvoiceScreen();
+      } catch (err: any) {
+        alert(`Error generating PDF/WhatsApp share: ${err?.message || 'Unknown error'}`);
+      } finally {
+        setIsSharingPdf(false);
+      }
       return;
     }
 
@@ -755,7 +830,15 @@ export const InvoiceScreen: React.FC = () => {
 
               <select
                 value={partyId}
-                onChange={(e) => setPartyId(e.target.value)}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setPartyId(id);
+                  const p = parties.find((item) => item.id === id);
+                  if (p) {
+                    setCustomerName(p.name);
+                    setCustomerPhone(p.phone || '');
+                  }
+                }}
                 className="w-full h-11 px-3 rounded-xl border border-border bg-white text-xs font-semibold text-slate-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               >
                 <option value="">Select Party</option>
@@ -781,6 +864,48 @@ export const InvoiceScreen: React.FC = () => {
                   </span>
                 </div>
               )}
+
+              {/* Customer / Billed Name & Mobile Number (Exact name printed on PDF) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-dashed border-border mt-1">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-bold text-slate-primary">
+                      {isSale ? 'Customer' : 'Supplier'} Name on Bill <span className="text-rose-500">*</span>
+                    </label>
+                    {selectedParty && selectedParty.name !== customerName && customerName.trim() && (
+                      <span className="text-[10px] text-emerald-600 font-bold">Custom Billed Name</span>
+                    )}
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Enter name to appear on Bill & PDF"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    className="w-full h-9 px-3 rounded-xl border border-border bg-white text-xs font-semibold text-slate-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-bold text-slate-primary">
+                      Customer Mobile (WhatsApp)
+                    </label>
+                    {customerPhone && (
+                      <span className="text-[10px] text-emerald-600 font-bold">Direct Chat</span>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">+91</span>
+                    <input
+                      type="tel"
+                      placeholder="10-digit mobile number"
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value)}
+                      className="w-full h-9 pl-11 pr-3 rounded-xl border border-border bg-white text-xs font-semibold text-slate-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Invoice Number */}
@@ -1405,14 +1530,15 @@ export const InvoiceScreen: React.FC = () => {
               type="button"
               onClick={() => handleSave(false, true)}
               disabled={isSharingPdf}
-              className="px-3.5 py-2.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-primary border border-indigo-200 font-bold text-xs flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+              title={customerPhone ? `Save & open WhatsApp chat for +91 ${customerPhone}` : 'Save bill & share on WhatsApp'}
+              className="px-3.5 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold text-xs flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed shadow-xs"
             >
               {isSharingPdf ? (
                 <Loader2 size={14} className="animate-spin" />
               ) : (
-                <Download size={14} />
+                <Share2 size={14} />
               )}
-              <span>{isSharingPdf ? 'Sharing PDF...' : 'Save & Share PDF'}</span>
+              <span>{isSharingPdf ? 'Opening WhatsApp...' : 'Save & Share (WhatsApp)'}</span>
             </button>
 
             <button

@@ -213,6 +213,7 @@ export interface Invoice {
   number: string;
   partyId: string;
   partyName: string;
+  customerPhone?: string;
   date: string;
   dueDate: string;
   paymentTerms?: PaymentTerms;   // e.g. NET_30

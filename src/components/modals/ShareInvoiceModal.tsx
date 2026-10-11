@@ -69,6 +69,7 @@ export const ShareInvoiceModal: React.FC = () => {
         messageTemplate: customMessage || defaultTemplate,
         printSettings,
         viewLink: resolvedViewLink,
+        forceNativeSheet,
       });
 
       setStatusFeedback(res.message);
@@ -89,7 +90,7 @@ export const ShareInvoiceModal: React.FC = () => {
     setIsProcessing(true);
     try {
       const cleanInvNo = (invoice.number || 'BILL').replace(/[^a-zA-Z0-9.-]/g, '-');
-      const cleanCustomer = (party?.name || invoice.partyName || 'Customer').trim().replace(/[^a-zA-Z0-9.-]/g, '-');
+      const cleanCustomer = (invoice.partyName || party?.name || 'Customer').trim().replace(/[^a-zA-Z0-9.-]/g, '-');
 
       if (format === 'IMAGE') {
         const imgFile = await generateInvoiceImageFile(invoice, business, party, printSettings);
@@ -120,6 +121,8 @@ export const ShareInvoiceModal: React.FC = () => {
     setTimeout(() => setCopiedLink(false), 2500);
   };
 
+  const displayPhone = invoice.customerPhone || party?.phone;
+
   return (
     <div className="fixed inset-0 z-60 bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
       <div className="w-full max-w-lg bg-white rounded-3xl border border-slate-200 shadow-2xl flex flex-col max-h-[92vh] overflow-hidden animate-in zoom-in-95 duration-150">
@@ -131,8 +134,8 @@ export const ShareInvoiceModal: React.FC = () => {
               Bill #{invoice.number} &bull; {formatINR(invoice.total)}
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Customer: <strong className="text-slate-800">{party?.name || invoice.partyName}</strong>
-              {party?.phone ? ` (${party.phone})` : ' (No phone)'}
+              Customer: <strong className="text-slate-800">{invoice.partyName || party?.name}</strong>
+              {displayPhone ? ` (+91 ${displayPhone})` : ' (No phone)'}
             </p>
           </div>
           <button
