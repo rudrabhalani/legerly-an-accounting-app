@@ -1,0 +1,6 @@
+android
+ios
+artifacts
+.gradle
+node_modules
+dist

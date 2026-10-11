@@ -13,6 +13,10 @@ const config: CapacitorConfig = {
     captureInput: true,
     backgroundColor: '#F4F6F9',
   },
+  ios: {
+    contentInset: 'automatic',
+    backgroundColor: '#F4F6F9',
+  },
   plugins: {
     SplashScreen: {
       launchShowDuration: 1200,

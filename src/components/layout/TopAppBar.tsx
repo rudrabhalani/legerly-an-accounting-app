@@ -34,7 +34,7 @@ export const TopAppBar: React.FC = () => {
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-white border-b border-gray-200/80 shadow-xs">
+    <header className="sticky top-0 z-30 bg-white border-b border-gray-200/80 shadow-xs pt-safe">
       <div className="max-w-xl lg:max-w-7xl mx-auto flex items-center justify-between px-3.5 h-14">
         {/* Left: 🏪 Shop Icon + Company Name with Inline Edit Pencil ✏️ (Exact Vyapar Header) */}
         <div className="flex items-center gap-2.5 min-w-0 flex-1">

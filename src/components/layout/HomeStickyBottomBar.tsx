@@ -209,7 +209,7 @@ export const HomeStickyBottomBar: React.FC = () => {
       )}
 
       {/* Floating Bottom Bar with 2 Big Buttons */}
-      <div className="fixed bottom-16 left-0 right-0 z-30 px-4 py-2 pointer-events-none">
+      <div className="fixed bottom-[calc(4rem+env(safe-area-inset-bottom,0px))] left-0 right-0 z-30 px-4 py-2 pointer-events-none">
         <div className="max-w-md mx-auto flex items-center gap-3 pointer-events-auto">
           {/* + MONEY IN (White background with thin green border) */}
           <button

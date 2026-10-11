@@ -5,21 +5,24 @@ import { SplashScreen } from '@capacitor/splash-screen';
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Network } from '@capacitor/network';
+import { Toast } from '@capacitor/toast';
 import { useLedgerlyStore } from '../store/useLedgerlyStore';
 
 export const isNativeMobile = (): boolean => {
   return Capacitor.isNativePlatform();
 };
 
+let lastBackPressTime = 0;
+
 /**
- * Initializes native mobile listeners, status bar, and back button handling
+ * Initializes native mobile listeners, status bar, and Android hardware back button handling.
  */
 export function initializeNativeApp(): () => void {
   if (!Capacitor.isNativePlatform()) {
     return () => {};
   }
 
-  // 1. Configure Android Status Bar
+  // 1. Configure Native Status Bar
   try {
     StatusBar.setStyle({ style: Style.Dark }).catch(() => {});
     StatusBar.setBackgroundColor({ color: '#1E1B4B' }).catch(() => {});
@@ -34,17 +37,13 @@ export function initializeNativeApp(): () => void {
     console.warn('SplashScreen hide skipped:', e);
   }
 
-  // 3. Android Hardware Back Button Handling
-  const backButtonSub = CapApp.addListener('backButton', ({ canGoBack }) => {
+  // 3. Android Hardware Back Button Handling Stack
+  const backButtonSub = CapApp.addListener('backButton', () => {
     const store = useLedgerlyStore.getState();
 
-    // Priority 1: Check and close any active modal
+    // Priority 1: Check and close any active modal / overlay
     if (store.isInvoiceScreenOpen) {
       store.closeInvoiceScreen();
-      return;
-    }
-    if (store.isInvoiceModalOpen) {
-      store.closeInvoiceModal();
       return;
     }
     if (store.isPaymentInOpen) {
@@ -67,12 +66,36 @@ export function initializeNativeApp(): () => void {
       store.closeExpenseModal();
       return;
     }
+    if (store.isAddSheetOpen) {
+      store.closeAddSheet();
+      return;
+    }
+    if (store.selectedPartyIdForLedger) {
+      store.closePartyLedger();
+      return;
+    }
+    if (store.selectedAccountIdForLedger) {
+      store.closeAccountLedger();
+      return;
+    }
     if (store.isPartyModalOpen) {
       store.closePartyModal();
       return;
     }
     if (store.isItemModalOpen) {
       store.closeItemModal();
+      return;
+    }
+    if (store.isTransferModalOpen) {
+      store.closeTransferModal();
+      return;
+    }
+    if (store.isInvoiceModalOpen) {
+      store.closeInvoiceModal();
+      return;
+    }
+    if (store.isReconcileModalOpen) {
+      store.closeReconcileModal();
       return;
     }
     if (store.isTransactionDetailOpen) {
@@ -107,18 +130,75 @@ export function initializeNativeApp(): () => void {
       store.closeSettings();
       return;
     }
+    if (store.isMultiUserModalOpen) {
+      store.closeMultiUserModal();
+      return;
+    }
+    if (store.isProfileModalOpen) {
+      store.closeProfileModal();
+      return;
+    }
+    if (store.isAuthModalOpen) {
+      store.closeAuthModal();
+      return;
+    }
+    if (store.isBankPickerModalOpen) {
+      store.closeBankPickerModal();
+      return;
+    }
+    if (store.isPeriodCashflowOpen) {
+      store.closePeriodCashflow();
+      return;
+    }
+    if (store.isChequesModalOpen) {
+      store.closeChequesModal();
+      return;
+    }
+    if (store.isGstrReportModalOpen) {
+      store.closeGstrReportModal();
+      return;
+    }
+    if (store.isAgeingReportModalOpen) {
+      store.closeAgeingReportModal();
+      return;
+    }
+    if (store.isCashFlowModalOpen) {
+      store.closeCashFlowModal();
+      return;
+    }
+    if (store.isLoanAccountsModalOpen) {
+      store.closeLoanAccountsModal();
+      return;
+    }
+    if (store.isRemindersModalOpen) {
+      store.closeRemindersModal();
+      return;
+    }
+    if (store.isFinancialYearModalOpen) {
+      store.closeFinancialYearModal();
+      return;
+    }
+    if (store.isDeleteYearModalOpen) {
+      store.closeDeleteYearModal();
+      return;
+    }
 
-    // Priority 2: If on a sub-screen, return to home
+    // Priority 2: If on a sub-screen / tab, return cleanly to 'home'
     if (store.activeTab !== 'home') {
       store.setActiveTab('home');
       return;
     }
 
-    // Priority 3: On Home screen with no modals, exit app
-    if (!canGoBack) {
+    // Priority 3: On Home screen with no modals, double-tap back within 2s to exit
+    const now = Date.now();
+    if (now - lastBackPressTime < 2000) {
       CapApp.exitApp();
     } else {
-      window.history.back();
+      lastBackPressTime = now;
+      Toast.show({
+        text: 'Press back again to exit Ledgerly',
+        duration: 'short',
+      }).catch(() => {});
     }
   });
 
@@ -126,6 +206,10 @@ export function initializeNativeApp(): () => void {
   const networkSub = Network.addListener('networkStatusChange', (status) => {
     if (!status.connected) {
       console.warn('Network offline: operating in offline-first mode with IndexedDB/LocalStorage');
+      Toast.show({
+        text: 'Offline mode: all entries are saved locally',
+        duration: 'short',
+      }).catch(() => {});
     }
   });
 
@@ -136,12 +220,12 @@ export function initializeNativeApp(): () => void {
 }
 
 /**
- * Native file sharing helper for Android
+ * Native file sharing helper for Android & iOS
  */
 export async function shareFileNative(
   fileName: string,
   base64Data: string,
-  mimeType: string,
+  _mimeType: string,
   title: string,
   text: string
 ): Promise<boolean> {

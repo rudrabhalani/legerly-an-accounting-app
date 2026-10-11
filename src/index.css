@@ -43,8 +43,8 @@
 
 /* Safe area insets for mobile navigation */
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 16px); }
-.safe-top { padding-top: env(safe-area-inset-top, 16px); }
 .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+.pt-safe { padding-top: env(safe-area-inset-top, 0px); }
 
 /* Vyapar-style ripple for buttons */
 button:active { transform: scale(0.97); }
