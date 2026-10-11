@@ -4,6 +4,7 @@ import { calculatePartyNetBalance, buildPartyLedger } from '../utils/accounting'
 import { formatINR, formatFullDate, paiseToRupees } from '../utils/formatters';
 import { generatePartyStatementPdf } from '../services/pdfService';
 import { exportPartyLedgerToExcel } from '../services/excelService';
+import { sharePdfToWhatsAppDirect } from '../services/documentShareService';
 import {
   ArrowLeft,
   Phone,
@@ -53,38 +54,14 @@ export const PartyLedgerScreen: React.FC = () => {
   const handleSharePdfFile = async () => {
     try {
       const doc = generatePartyStatementPdf(party, allLedgerEntries, business);
-      const pdfBlob = doc.output('blob');
       const fileName = `${party.name.replace(/[^a-zA-Z0-9]/g, '_')}_statement.pdf`;
-      const pdfFile = new File([pdfBlob], fileName, { type: 'application/pdf' });
-
       const text = `Hello ${party.name},\nHere is your account statement from ${business.name}.\n` +
         `Current Balance: ${netBalance >= 0 ? "You'll get " : "You'll give "}₹${(Math.abs(netBalance) / 100).toFixed(2)}`;
 
-      if (typeof navigator !== 'undefined' && navigator.canShare && navigator.canShare({ files: [pdfFile] })) {
-        try {
-          await navigator.share({
-            files: [pdfFile],
-            title: `${party.name} Statement.pdf`,
-            text,
-          });
-          return;
-        } catch (err: any) {
-          if (err?.name === 'AbortError') return;
-        }
-      }
-
-      doc.save(fileName);
       const phoneNum = party.phone ? party.phone.replace(/\D/g, '') : '';
-      const fullText = encodeURIComponent(
-        `${text}\n\n(📄 PDF statement "${fileName}" has been downloaded to attach directly).`
-      );
-      if (phoneNum) {
-        window.open(`https://wa.me/91${phoneNum}?text=${fullText}`, '_blank');
-      } else {
-        window.open(`https://wa.me/?text=${fullText}`, '_blank');
-      }
-    } catch (err) {
-      alert('Error generating or sharing statement PDF.');
+      await sharePdfToWhatsAppDirect(doc, fileName, phoneNum, text);
+    } catch (err: any) {
+      alert(`Error sharing statement PDF: ${err?.message || 'Unknown error'}`);
     }
   };
 

@@ -28,6 +28,7 @@ import {
   sharePdfDocument,
   downloadPdfDocument,
   downloadBlobInBrowser,
+  sharePdfToWhatsAppDirect,
 } from './documentShareService';
 
 // In-memory cache for generated PDF and Image files per invoice version
@@ -1266,27 +1267,16 @@ export async function shareBillPdfFile({
     };
   }
 
-  // 2. Direct WhatsApp Customer Chat: Save PDF and open WhatsApp chat of customer directly
-  downloadPdfDocument(doc, fileName);
-
+  // 2. Direct WhatsApp Customer Chat: Attach real PDF file directly to customer's WhatsApp chat
   const rawPhone = invoice.customerPhone || party?.phone || '';
   const phone = normalizePhoneNumber(rawPhone);
-  const fallbackText = encodeURIComponent(
-    `${caption}\n\n(📄 Note: "${fileName}" has been downloaded to your device; please attach it here).`
-  );
-  const waUrl = phone
-    ? `https://wa.me/91${phone}?text=${fallbackText}`
-    : `https://wa.me/?text=${fallbackText}`;
-
-  if (typeof window !== 'undefined') {
-    window.open(waUrl, '_blank');
-  }
+  const shareRes = await sharePdfToWhatsAppDirect(doc, fileName, phone, caption);
 
   return {
-    success: true,
-    message: `PDF saved (${fileName}). WhatsApp chat opened for ${cleanCustomer}.`,
+    success: shareRes.success,
+    message: shareRes.message || `PDF sent directly to ${cleanCustomer} on WhatsApp.`,
     fileName,
-    sharedViaNativeSheet: false,
+    sharedViaNativeSheet: shareRes.method === 'WHATSAPP_DIRECT' || shareRes.method === 'NATIVE_SHARE_SHEET',
   };
 }
 

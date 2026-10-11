@@ -2,7 +2,8 @@
  * Ledgerly Centralized Document Sharing & Export Service
  * Provides production-grade document sharing, saving, and downloading across Android APK & Web.
  * 
- * - Native Android: Bridges directly to Android FileProvider via Capacitor Filesystem & Share Sheet.
+ * - Native Android: Bridges directly to Android FileProvider via AndroidPdfSharer and Capacitor Filesystem + Share.
+ * - WhatsApp Direct: Directly attaches PDF file to WhatsApp chat of customer with caption.
  * - Web / PWA: Uses Web Share API when files are supported; cleanly falls back to direct browser download.
  * - Spreadsheet Security: Prevents formula injection (=, +, -, @) on all exports.
  */
@@ -122,24 +123,43 @@ export async function shareDocument({
     };
   }
 
-  // 1. Android Native Execution (Capacitor)
+  const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+
+  // 1. Check Native Android Bridge (AndroidPdfSharer)
+  if (typeof window !== 'undefined' && (window as any).AndroidPdfSharer?.sharePdfGeneric && mimeType === 'application/pdf') {
+    try {
+      const base64 = await blobToBase64(blob);
+      const shared = (window as any).AndroidPdfSharer.sharePdfGeneric(base64, safeFileName, text);
+      if (shared) {
+        return {
+          success: true,
+          method: 'NATIVE_SHARE_SHEET',
+          fileName: safeFileName,
+          message: `Shared "${safeFileName}" via Android system share sheet.`,
+        };
+      }
+    } catch (err: any) {
+      console.warn('AndroidPdfSharer.sharePdfGeneric failed, falling back:', err);
+    }
+  }
+
+  // 2. Android Native Execution (Capacitor Filesystem + Share with files: [uri])
   if (Capacitor.isNativePlatform()) {
     try {
       const base64 = await blobToBase64(blob);
-      const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
 
-      // Write file to Cache directory (handled by FileProvider)
+      // Write file to Cache directory (exposed securely via FileProvider)
       const saved = await Filesystem.writeFile({
         path: safeFileName,
         data: base64,
         directory: Directory.Cache,
       });
 
-      // Invoke Android Native Share Chooser (WhatsApp, Gmail, Drive, Bluetooth, etc.)
+      // Pass native file URI in files array so Capacitor adds Intent.EXTRA_STREAM with FileProvider
       await Share.share({
         title,
         text,
-        url: saved.uri,
+        files: [saved.uri],
         dialogTitle: dialogTitle || title,
       });
 
@@ -155,18 +175,18 @@ export async function shareDocument({
         return {
           success: true,
           method: 'NATIVE_SHARE_SHEET',
-          fileName,
+          fileName: safeFileName,
           message: 'Share sheet dismissed.',
         };
       }
-      console.warn('Native Android share sheet failed, attempting browser fallback:', err);
+      console.warn('Capacitor native share sheet failed, attempting browser fallback:', err);
     }
   }
 
-  // 2. Web Share API (Desktop/Mobile Browsers with file support)
+  // 3. Web Share API (Desktop/Mobile Browsers with file support)
   if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
     try {
-      const fileObj = new File([blob], fileName, { type: mimeType, lastModified: Date.now() });
+      const fileObj = new File([blob], safeFileName, { type: mimeType, lastModified: Date.now() });
       const canShare = typeof navigator.canShare === 'function' && navigator.canShare({ files: [fileObj] });
 
       if (canShare) {
@@ -178,8 +198,8 @@ export async function shareDocument({
         return {
           success: true,
           method: 'WEB_SHARE_API',
-          fileName,
-          message: `Shared "${fileName}" via system share sheet.`,
+          fileName: safeFileName,
+          message: `Shared "${safeFileName}" via system share sheet.`,
         };
       }
     } catch (err: any) {
@@ -187,7 +207,7 @@ export async function shareDocument({
         return {
           success: true,
           method: 'WEB_SHARE_API',
-          fileName,
+          fileName: safeFileName,
           message: 'Share dialog closed.',
         };
       }
@@ -195,28 +215,147 @@ export async function shareDocument({
     }
   }
 
-  // 3. Fallback: Direct Download
-  const downloaded = downloadBlobInBrowser(blob, fileName);
+  // 4. Fallback: Direct Download
+  const downloaded = downloadBlobInBrowser(blob, safeFileName);
   if (downloaded) {
     return {
       success: true,
       method: 'DOWNLOAD',
-      fileName,
-      message: `Downloaded "${fileName}" to your device.`,
+      fileName: safeFileName,
+      message: `Downloaded "${safeFileName}" to your device.`,
     };
   }
 
   return {
     success: false,
     method: 'DOWNLOAD',
-    fileName,
-    message: `Failed to download or share "${fileName}".`,
+    fileName: safeFileName,
+    message: `Failed to download or share "${safeFileName}".`,
     error: 'All sharing methods failed',
   };
 }
 
 /**
- * Share a generated jsPDF document
+ * Direct WhatsApp sharing with the real PDF file attached.
+ * Uses Android native intent with package "com.whatsapp", JID extra, and FileProvider URI.
+ */
+export async function sharePdfToWhatsAppDirect(
+  docOrBlob: jsPDF | Blob,
+  fileName: string,
+  rawPhoneNumber: string = '',
+  captionText: string = ''
+): Promise<DocumentShareResult> {
+  const blob = docOrBlob instanceof Blob ? docOrBlob : docOrBlob.output('blob');
+  const safeFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const cleanPhone = (rawPhoneNumber || '').replace(/[^0-9]/g, '');
+
+  // 1. Try Native Android Bridge (Direct Intent with com.whatsapp and jid extra)
+  if (typeof window !== 'undefined' && (window as any).AndroidPdfSharer?.sharePdfToWhatsApp) {
+    try {
+      const base64 = await blobToBase64(blob);
+      const success = (window as any).AndroidPdfSharer.sharePdfToWhatsApp(
+        base64,
+        safeFileName,
+        cleanPhone,
+        captionText
+      );
+      if (success) {
+        return {
+          success: true,
+          method: 'WHATSAPP_DIRECT',
+          fileName: safeFileName,
+          message: `Sent "${safeFileName}" directly to WhatsApp.`,
+        };
+      }
+    } catch (err: any) {
+      console.warn('AndroidPdfSharer.sharePdfToWhatsApp failed, falling back:', err);
+    }
+  }
+
+  // 2. Try Capacitor Native Share Sheet (with files: [saved.uri])
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const base64 = await blobToBase64(blob);
+      const saved = await Filesystem.writeFile({
+        path: safeFileName,
+        data: base64,
+        directory: Directory.Cache,
+      });
+
+      await Share.share({
+        title: safeFileName,
+        text: captionText,
+        files: [saved.uri],
+        dialogTitle: 'Share Invoice PDF on WhatsApp',
+      });
+
+      return {
+        success: true,
+        method: 'WHATSAPP_DIRECT',
+        fileName: safeFileName,
+        message: `Opened share sheet for "${safeFileName}".`,
+      };
+    } catch (err: any) {
+      if (err?.name === 'AbortError' || err?.message?.includes('canceled')) {
+        return {
+          success: true,
+          method: 'WHATSAPP_DIRECT',
+          fileName: safeFileName,
+          message: 'Share dismissed.',
+        };
+      }
+      console.warn('Capacitor share failed in WhatsApp direct, trying web fallback:', err);
+    }
+  }
+
+  // 3. Web Share API with files
+  if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+    try {
+      const fileObj = new File([blob], safeFileName, { type: 'application/pdf', lastModified: Date.now() });
+      if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [fileObj] })) {
+        await navigator.share({
+          files: [fileObj],
+          title: safeFileName,
+          text: captionText,
+        });
+        return {
+          success: true,
+          method: 'WEB_SHARE_API',
+          fileName: safeFileName,
+          message: `Shared "${safeFileName}" via system share.`,
+        };
+      }
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        return {
+          success: true,
+          method: 'WEB_SHARE_API',
+          fileName: safeFileName,
+          message: 'Share dialog closed.',
+        };
+      }
+    }
+  }
+
+  // 4. Web Browser Fallback: Download file and open WhatsApp chat
+  downloadBlobInBrowser(blob, safeFileName);
+  const waUrl = cleanPhone
+    ? `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(captionText)}`
+    : `https://wa.me/?text=${encodeURIComponent(captionText)}`;
+  if (typeof window !== 'undefined') {
+    window.open(waUrl, '_blank');
+  }
+
+  return {
+    success: true,
+    method: 'DOWNLOAD',
+    fileName: safeFileName,
+    message: `Downloaded "${safeFileName}" and opened WhatsApp.`,
+  };
+}
+
+/**
+ * Share a generated jsPDF document via system chooser
  */
 export async function sharePdfDocument(
   doc: jsPDF,

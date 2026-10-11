@@ -21,7 +21,7 @@ import {
 import { INDIAN_STATES, isInterStateSupply } from '../../data/indianStates';
 import { calculateLineGST, calculateInvoiceTotals } from '../../utils/gstCalc';
 import { generateInvoicePdf, shareBillPdfFile, formatInvoiceMessageTemplate } from '../../services/pdfService';
-import { sharePdfDocument, downloadPdfDocument } from '../../services/documentShareService';
+import { sharePdfDocument, downloadPdfDocument, sharePdfToWhatsAppDirect } from '../../services/documentShareService';
 import { pickMobileContacts, normalizePhoneNumber } from '../../utils/contactPicker';
 import { CustomerContactPicker } from '../common/CustomerContactPicker';
 import { FastItemSelector, StagedItem } from '../common/FastItemSelector';
@@ -686,7 +686,6 @@ export const InvoiceScreen: React.FC = () => {
         const fileName = `Invoice-${cleanInvNo}-${cleanCust}.pdf`;
         
         const doc = generateInvoicePdf(invoice, business, partyObj, defaultBankAcc, printSettings);
-        downloadPdfDocument(doc, fileName);
 
         // 2. Format WhatsApp caption
         const defaultTemplate = printSettings?.messageTemplate ||
@@ -697,15 +696,8 @@ export const InvoiceScreen: React.FC = () => {
         const rawPhone = invoice.customerPhone || partyObj?.phone || '';
         const cleanPhone = normalizePhoneNumber(rawPhone);
 
-        // 4. Directly open customer's chat in WhatsApp
-        const waText = encodeURIComponent(`${caption}\n\n(📄 Note: "${fileName}" has been downloaded to your device; please attach it here).`);
-        const waUrl = cleanPhone
-          ? `https://wa.me/91${cleanPhone}?text=${waText}`
-          : `https://wa.me/?text=${waText}`;
-
-        if (typeof window !== 'undefined') {
-          window.open(waUrl, '_blank');
-        }
+        // 4. Directly attach real PDF file and send to customer via WhatsApp
+        await sharePdfToWhatsAppDirect(doc, fileName, cleanPhone, caption);
 
         closeInvoiceScreen();
       } catch (err: any) {
