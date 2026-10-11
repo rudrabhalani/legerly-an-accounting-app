@@ -427,30 +427,30 @@ export const PrintSettingsModal: React.FC = () => {
                   </tbody>
                 </table>
 
-                {/* Totals Summary Box Card */}
-                <div className="mt-2 bg-slate-50/70 border border-slate-200 rounded-xl p-2.5 space-y-1.5 text-[11px]">
-                  <div className="flex justify-between items-center text-slate-600">
-                    <span>Subtotal:</span>
-                    <span className="font-semibold text-slate-800">Rs. 11,470.00</span>
+                {/* Totals Summary Complete Box Table */}
+                <div className="mt-2 bg-white border border-slate-700 rounded-none overflow-hidden text-[11px] divide-y divide-slate-200">
+                  <div className="grid grid-cols-[1fr_auto] divide-x divide-slate-300">
+                    <span className="px-2 py-1 text-slate-600">Subtotal:</span>
+                    <span className="px-2 py-1 font-semibold text-slate-800 text-right">Rs. 11,470.00</span>
                   </div>
                   {formData.showTax && (
-                    <div className="flex justify-between items-center text-blue-600">
-                      <span>GST (5%):</span>
-                      <span className="font-semibold">+Rs. 573.50</span>
+                    <div className="grid grid-cols-[1fr_auto] divide-x divide-slate-300 text-blue-600">
+                      <span className="px-2 py-1">GST (5%):</span>
+                      <span className="px-2 py-1 font-semibold text-right">+Rs. 573.50</span>
                     </div>
                   )}
-                  <div className="flex justify-between items-center text-xs font-extrabold text-blue-700 pt-1.5 border-t border-slate-200 bg-indigo-50/60 -mx-1.5 px-1.5 py-1 rounded-lg">
-                    <span>Grand Total:</span>
-                    <span>Rs. 12,043.50</span>
+                  <div className="grid grid-cols-[1fr_auto] divide-x divide-indigo-300 text-xs font-extrabold text-blue-700 bg-indigo-50 border-y border-indigo-300">
+                    <span className="px-2 py-1.5">Grand Total:</span>
+                    <span className="px-2 py-1.5 text-right">Rs. 12,043.50</span>
                   </div>
-                  <div className="flex justify-between items-center text-slate-600">
-                    <span>Paid / Received:</span>
-                    <span className="font-semibold text-emerald-700">Rs. 12,043.50</span>
+                  <div className="grid grid-cols-[1fr_auto] divide-x divide-slate-300 text-slate-600">
+                    <span className="px-2 py-1">Paid / Received:</span>
+                    <span className="px-2 py-1 font-semibold text-slate-800 text-right">Rs. 12,043.50</span>
                   </div>
                   {formData.showBalanceDue && (
-                    <div className="flex justify-between items-center font-bold text-emerald-600">
-                      <span>Balance Due:</span>
-                      <span>Rs. 0.00</span>
+                    <div className="grid grid-cols-[1fr_auto] divide-x divide-slate-300 font-bold text-emerald-700 bg-emerald-50/60">
+                      <span className="px-2 py-1">Balance Due:</span>
+                      <span className="px-2 py-1 text-right">Rs. 0.00</span>
                     </div>
                   )}
                 </div>

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Ledgerly</string>
+    <string name="title_activity_main">Ledgerly</string>
+    <string name="package_name">com.legerly.accounting</string>
+    <string name="custom_url_scheme">com.legerly.accounting</string>
+</resources>

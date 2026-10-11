@@ -502,59 +502,78 @@ export function generateInvoicePdf(
     });
   }
 
-  const boxX = 120;
-  const boxWidth = 76;
-  const boxY = finalY + 8;
-  const boxHeight = summaryRows.length * 5.6 + 6;
+  // Right column: Totals summary COMPLETE BOX TABLE
+  const boxX = 114;
+  const boxWidth = 82; // exactly aligns with 196mm right margin
+  const colDividerX = boxX + 46; // 46mm for label, 36mm for amount
+  const rowHeight = 6.4;
+  const boxHeight = summaryRows.length * rowHeight;
+  const boxY = finalY + 6;
 
-  // Background and border card for Totals Box
-  doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(226, 232, 240);
-  doc.setLineWidth(0.4);
-  doc.roundedRect(boxX, boxY, boxWidth, boxHeight, 2.5, 2.5, 'FD');
+  // Background and outer border
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(51, 65, 85);
+  doc.setLineWidth(0.45);
+  doc.rect(boxX, boxY, boxWidth, boxHeight, 'FD');
 
-  let rowY = boxY + 5;
-  const leftPad = boxX + 4;
-  const rightPad = boxX + boxWidth - 4;
+  // Vertical line separating label and amount columns
+  doc.setDrawColor(51, 65, 85);
+  doc.setLineWidth(0.35);
+  doc.line(colDividerX, boxY, colDividerX, boxY + boxHeight);
 
-  for (const r of summaryRows) {
-    if (r.isGrandTotal) {
-      // Divider before Grand Total
+  // Render each row in its own boxed cell
+  summaryRows.forEach((r, idx) => {
+    const currentY = boxY + idx * rowHeight;
+
+    // Horizontal divider between rows
+    if (idx > 0) {
       doc.setDrawColor(203, 213, 225);
       doc.setLineWidth(0.3);
-      doc.line(boxX + 2, rowY - 2, boxX + boxWidth - 2, rowY - 2);
-
-      // Highlight bar for Grand Total
-      doc.setFillColor(238, 242, 255);
-      doc.rect(boxX + 0.5, rowY - 1.2, boxWidth - 1, 6.2, 'F');
-
-      rowY += 3.2;
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9.5);
-      doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-      doc.text(r.label, leftPad, rowY);
-      doc.text(r.value, rightPad, rowY, { align: 'right' });
-      rowY += 5.5;
-    } else if (r.isBalanceDue) {
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(9);
-      if (r.duePositive) {
-        doc.setTextColor(220, 38, 38);
-      } else {
-        doc.setTextColor(22, 101, 52);
-      }
-      doc.text(r.label, leftPad, rowY);
-      doc.text(r.value, rightPad, rowY, { align: 'right' });
-      rowY += 5.2;
-    } else {
-      doc.setFont('helvetica', r.isBold ? 'bold' : 'normal');
-      doc.setFontSize(8.5);
-      doc.setTextColor(slateColor[0], slateColor[1], slateColor[2]);
-      doc.text(r.label, leftPad, rowY);
-      doc.text(r.value, rightPad, rowY, { align: 'right' });
-      rowY += 5.2;
+      doc.line(boxX, currentY, boxX + boxWidth, currentY);
     }
-  }
+
+    // Row background highlight
+    if (r.isGrandTotal) {
+      doc.setFillColor(238, 242, 255);
+      doc.rect(boxX + 0.1, currentY + 0.1, boxWidth - 0.2, rowHeight - 0.2, 'F');
+      doc.setDrawColor(79, 70, 229);
+      doc.setLineWidth(0.35);
+      doc.line(boxX, currentY, boxX + boxWidth, currentY);
+      doc.line(boxX, currentY + rowHeight, boxX + boxWidth, currentY + rowHeight);
+      doc.line(colDividerX, currentY, colDividerX, currentY + rowHeight);
+    } else if (r.isBalanceDue) {
+      doc.setFillColor(r.duePositive ? 254 : 240, r.duePositive ? 242 : 253, r.duePositive ? 242 : 244);
+      doc.rect(boxX + 0.1, currentY + 0.1, boxWidth - 0.2, rowHeight - 0.2, 'F');
+      doc.setDrawColor(203, 213, 225);
+      doc.line(colDividerX, currentY, colDividerX, currentY + rowHeight);
+    }
+
+    const textBaseline = currentY + 4.5;
+    const labelX = boxX + 3;
+    const valueX = boxX + boxWidth - 3;
+
+    // Draw label
+    doc.setFont('helvetica', r.isBold ? 'bold' : 'normal');
+    doc.setFontSize(r.isGrandTotal ? 9.5 : 8.5);
+    if (r.isGrandTotal) {
+      doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+    } else if (r.isBalanceDue) {
+      doc.setTextColor(r.duePositive ? 220 : 22, r.duePositive ? 38 : 101, r.duePositive ? 38 : 52);
+    } else {
+      doc.setTextColor(slateColor[0], slateColor[1], slateColor[2]);
+    }
+    doc.text(r.label, labelX, textBaseline);
+
+    // Draw value (amount)
+    doc.setFont('helvetica', r.isBold ? 'bold' : 'normal');
+    doc.setFontSize(r.isGrandTotal ? 9.5 : 8.5);
+    doc.text(r.value, valueX, textBaseline, { align: 'right' });
+  });
+
+  // Solid outer border enclosing entire totals box
+  doc.setDrawColor(51, 65, 85);
+  doc.setLineWidth(0.5);
+  doc.rect(boxX, boxY, boxWidth, boxHeight, 'D');
 
   // Footer & Authorized Signatory
   const shopName = printSettings?.shopName || business.name || 'Shree Sweet';

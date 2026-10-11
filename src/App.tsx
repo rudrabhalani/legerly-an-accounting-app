@@ -50,6 +50,7 @@ import { CashFlowModal } from './components/modals/CashFlowModal';
 import { ChequesModal } from './components/modals/ChequesModal';
 import { LoanAccountsModal } from './components/modals/LoanAccountsModal';
 import { ToastSnackbar } from './components/common/ToastSnackbar';
+import { initializeNativeApp } from './services/nativeService';
 
 export function App() {
   const [showSplash, setShowSplash] = useState(true);
@@ -58,6 +59,12 @@ export function App() {
   const setActiveTab = useLedgerlyStore((state) => state.setActiveTab);
   const openInvoiceScreen = useLedgerlyStore((state) => state.openInvoiceScreen);
   const openExpenseModal = useLedgerlyStore((state) => state.openExpenseModal);
+
+  // Initialize Android native capabilities, hardware back button, status bar
+  useEffect(() => {
+    const cleanup = initializeNativeApp();
+    return cleanup;
+  }, []);
 
   // Global Desktop Keyboard Shortcuts (Alt+S = Sale, Alt+P = Purchase, Alt+E = Expense)
   useEffect(() => {

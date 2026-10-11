@@ -26,3 +26,13 @@ dist-ssr
 .vercel
 *.pdf
 *.xlsx
+
+# Android build outputs & caches
+.gradle/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/*.iml
+android/app/*.iml

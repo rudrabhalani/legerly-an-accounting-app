@@ -1,25 +1,30 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.ledgerly.app',
+  appId: 'com.legerly.accounting',
   appName: 'Ledgerly',
   webDir: 'dist',
-  bundledWebRuntime: false,
   server: {
     androidScheme: 'https',
+    cleartext: false,
+  },
+  android: {
+    allowMixedContent: false,
+    captureInput: true,
+    backgroundColor: '#F4F6F9',
   },
   plugins: {
     SplashScreen: {
       launchShowDuration: 1200,
       launchAutoHide: true,
-      backgroundColor: '#FFFFFF',
+      backgroundColor: '#1E1B4B',
       androidSplashResourceName: 'splash',
-      androidScaleType: 'CENTER_CROP',
       showSpinner: false,
     },
     StatusBar: {
       style: 'DARK',
-      backgroundColor: '#4F46E5',
+      backgroundColor: '#1E1B4B',
+      overlaysWebView: false,
     },
   },
 };
