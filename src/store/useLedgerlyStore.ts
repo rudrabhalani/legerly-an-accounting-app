@@ -2093,9 +2093,17 @@ export const useLedgerlyStore = create<LedgerlyState>()(
         partyGroups: state.partyGroups,
         cheques: state.cheques,
         loanAccounts: state.loanAccounts,
+        reminders: state.reminders,
         firmSettings: state.firmSettings,
         printSettings: state.printSettings,
       }),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          if (!state.items || state.items.length === 0) {
+            state.items = INITIAL_ITEMS;
+          }
+        }
+      },
     }
   )
 );

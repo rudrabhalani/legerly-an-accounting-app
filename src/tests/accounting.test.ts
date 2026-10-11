@@ -951,5 +951,84 @@ describe('Store: Auto-Save Items & Transaction Details Modal', () => {
   });
 });
 
+describe('Shree Sweets Billing System: Master Products, Multi-Item Selection & Fractional Quantities', () => {
+  it('loads default sweet shop items with default prices, units, and categories', async () => {
+    const { useLedgerlyStore } = await import('../store/useLedgerlyStore');
+    const items = useLedgerlyStore.getState().items;
+
+    const kajuKatri = items.find((i) => i.name === 'Kaju Katri');
+    expect(kajuKatri).toBeDefined();
+    expect(kajuKatri?.salePrice).toBe(90000); // ₹900/kg
+    expect(kajuKatri?.unit).toBe('kg');
+    expect(kajuKatri?.category).toBe('Sweets');
+
+    const dryFruitBarfi = items.find((i) => i.name === 'Dry Fruit Barfi');
+    expect(dryFruitBarfi).toBeDefined();
+    expect(dryFruitBarfi?.salePrice).toBe(110000); // ₹1,100/kg
+    expect(dryFruitBarfi?.unit).toBe('kg');
+
+    const dates = items.find((i) => i.name.includes('Dates'));
+    expect(dates).toBeDefined();
+    expect(dates?.salePrice).toBe(35000); // ₹350/kg
+    expect(dates?.category).toBe('Dry Fruits');
+  });
+
+  it('accurately calculates fractional quantities like 0.25 kg, 0.5 kg, and 1.5 kg', async () => {
+    const { calculateLineGST } = await import('../utils/gstCalc');
+
+    // Kaju Katri 0.5 kg at ₹900/kg (paise: 90000)
+    const calcHalfKg = calculateLineGST({
+      qty: 0.5,
+      ratePaise: 90000,
+      discountType: 'PERCENT',
+      discountPercent: 0,
+      taxPercent: 5,
+      taxIncluded: false,
+      withGst: true,
+      isInterState: false,
+    });
+    expect(calcHalfKg.taxableAmountPaise).toBe(45000); // ₹450
+    expect(calcHalfKg.cgstPaise).toBe(1125); // 2.5% = ₹11.25
+    expect(calcHalfKg.sgstPaise).toBe(1125);
+    expect(calcHalfKg.rowTotalPaise).toBe(47250); // ₹472.50
+
+    // Dates 0.25 kg at ₹350/kg (paise: 35000)
+    const calcQuarterKg = calculateLineGST({
+      qty: 0.25,
+      ratePaise: 35000,
+      discountType: 'PERCENT',
+      discountPercent: 0,
+      taxPercent: 0,
+      taxIncluded: false,
+      withGst: false,
+      isInterState: false,
+    });
+    expect(calcQuarterKg.taxableAmountPaise).toBe(8750); // ₹87.50
+    expect(calcQuarterKg.rowTotalPaise).toBe(8750);
+  });
+
+  it('allows saving a new product master from billing screen and immediately retrieves it', async () => {
+    const { useLedgerlyStore } = await import('../store/useLedgerlyStore');
+    const store = useLedgerlyStore.getState();
+
+    const created = store.addItem({
+      name: 'Special Kaju Anjeer Roll',
+      category: 'Sweets',
+      unit: 'kg',
+      salePrice: 125000, // ₹1,250/kg
+      purchasePrice: 90000,
+      openingStock: 15,
+      minStock: 2,
+      taxPercent: 5,
+    });
+
+    expect(created.id).toBeDefined();
+    const retrieved = useLedgerlyStore.getState().items.find((i) => i.id === created.id);
+    expect(retrieved).toBeDefined();
+    expect(retrieved?.salePrice).toBe(125000);
+    expect(retrieved?.category).toBe('Sweets');
+  });
+});
+
 
 

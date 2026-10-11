@@ -23,6 +23,8 @@ import { calculateLineGST, calculateInvoiceTotals } from '../../utils/gstCalc';
 import { generateInvoicePdf, shareBillPdfFile, formatInvoiceMessageTemplate } from '../../services/pdfService';
 import { sharePdfDocument, downloadPdfDocument } from '../../services/documentShareService';
 import { pickMobileContacts, normalizePhoneNumber } from '../../utils/contactPicker';
+import { CustomerContactPicker } from '../common/CustomerContactPicker';
+import { FastItemSelector, StagedItem } from '../common/FastItemSelector';
 import {
   X,
   Plus,
@@ -121,12 +123,13 @@ export const InvoiceScreen: React.FC = () => {
   // Quick Add Item Modal
   const [showQuickItemModal, setShowQuickItemModal] = useState(false);
   const [newItemName, setNewItemName] = useState('');
-  const [newItemUnit, setNewItemUnit] = useState<UnitType>('pcs');
+  const [newItemCategory, setNewItemCategory] = useState('Sweets');
+  const [newItemUnit, setNewItemUnit] = useState<UnitType>('kg');
   const [newItemSalePrice, setNewItemSalePrice] = useState('');
   const [newItemPurchasePrice, setNewItemPurchasePrice] = useState('');
-  const [newItemGstPercent, setNewItemGstPercent] = useState(18);
-  const [newItemHsn, setNewItemHsn] = useState('');
-  const [newItemOpeningStock, setNewItemOpeningStock] = useState('0');
+  const [newItemGstPercent, setNewItemGstPercent] = useState(5);
+  const [newItemHsn, setNewItemHsn] = useState('2106');
+  const [newItemOpeningStock, setNewItemOpeningStock] = useState('10');
 
   // Negative Stock Warning Alert
   const [stockWarnings, setStockWarnings] = useState<string[]>([]);
@@ -222,45 +225,8 @@ export const InvoiceScreen: React.FC = () => {
             : accounts.find((a) => a.type === 'BANK');
         setSelectedAccountId(defaultAcc?.id || accounts[0]?.id || '');
 
-        // If items exist, add one empty/first line
-        if (items.length > 0) {
-          const first = items[0];
-          const initialRate = initialType === 'SALE' ? first.salePrice : first.purchasePrice;
-          const calc = calculateLineGST({
-            qty: 1,
-            ratePaise: initialRate,
-            discountType: 'PERCENT',
-            discountPercent: 0,
-            taxPercent: first.taxPercent,
-            taxIncluded: false,
-            withGst: true,
-            isInterState: false,
-          });
-
-          setLines([
-            {
-              id: `line-${Date.now()}`,
-              itemId: first.id,
-              itemName: first.name,
-              unit: first.unit,
-              qty: 1,
-              rate: initialRate,
-              discountPercent: 0,
-              discountType: 'PERCENT',
-              discountAmount: 0,
-              taxPercent: first.taxPercent,
-              taxIncluded: false,
-              taxableAmount: calc.taxableAmountPaise,
-              cgst: calc.cgstPaise,
-              sgst: calc.sgstPaise,
-              igst: calc.igstPaise,
-              amount: calc.rowTotalPaise,
-              hsn: first.hsn,
-            },
-          ]);
-        } else {
-          setLines([]);
-        }
+        // Start fresh with clean lines ready for 1-tap item selection
+        setLines([]);
       }
     }
   }, [isInvoiceScreenOpen, mode, activeInvoiceToEdit]);
@@ -333,6 +299,82 @@ export const InvoiceScreen: React.FC = () => {
       hsn: defaultItem?.hsn || '',
     };
     setLines([...lines, newLine]);
+  };
+
+  const handleAddSelectedStagedItems = (stagedItems: StagedItem[]) => {
+    let currentLines = [...lines];
+
+    for (const staged of stagedItems) {
+      const existingIdx = currentLines.findIndex(
+        (l) =>
+          l.itemId === staged.item.id ||
+          l.itemName.trim().toLowerCase() === staged.item.name.trim().toLowerCase()
+      );
+
+      if (existingIdx !== -1) {
+        // Increment quantity on existing line without creating a duplicate row
+        const existing = currentLines[existingIdx];
+        const newQty = Math.round((existing.qty + staged.qty) * 1000) / 1000;
+
+        const calc = calculateLineGST({
+          qty: newQty,
+          ratePaise: existing.rate,
+          discountType: existing.discountType || 'PERCENT',
+          discountPercent: existing.discountPercent || 0,
+          discountAmountPaise: existing.discountAmount || 0,
+          taxPercent: existing.taxPercent,
+          taxIncluded: existing.taxIncluded,
+          withGst,
+          isInterState,
+        });
+
+        currentLines[existingIdx] = {
+          ...existing,
+          qty: newQty,
+          taxableAmount: calc.taxableAmountPaise,
+          cgst: calc.cgstPaise,
+          sgst: calc.sgstPaise,
+          igst: calc.igstPaise,
+          amount: calc.rowTotalPaise,
+        };
+      } else {
+        // Append new line with default rate and calculated taxes
+        const calc = calculateLineGST({
+          qty: staged.qty,
+          ratePaise: staged.ratePaise,
+          discountType: 'PERCENT',
+          discountPercent: 0,
+          taxPercent: staged.item.taxPercent || 0,
+          taxIncluded: false,
+          withGst,
+          isInterState,
+        });
+
+        const newLine: InvoiceLine = {
+          id: `line-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          itemId: staged.item.id,
+          itemName: staged.item.name,
+          itemType: staged.item.itemType || 'PRODUCT',
+          unit: staged.item.unit,
+          qty: staged.qty,
+          rate: staged.ratePaise,
+          discountPercent: 0,
+          discountType: 'PERCENT',
+          discountAmount: 0,
+          taxPercent: staged.item.taxPercent || 0,
+          taxIncluded: false,
+          taxableAmount: calc.taxableAmountPaise,
+          cgst: calc.cgstPaise,
+          sgst: calc.sgstPaise,
+          igst: calc.igstPaise,
+          amount: calc.rowTotalPaise,
+          hsn: staged.item.hsn || '',
+        };
+        currentLines.push(newLine);
+      }
+    }
+
+    setLines(currentLines);
   };
 
   const handleSelectSavedItem = (lineId: string, savedItem: Item) => {
@@ -464,7 +506,7 @@ export const InvoiceScreen: React.FC = () => {
 
     const created = addItem({
       name: newItemName.trim(),
-      category: 'General',
+      category: newItemCategory.trim() || 'General',
       unit: newItemUnit,
       salePrice: sPrice,
       purchasePrice: pPrice,
@@ -480,38 +522,14 @@ export const InvoiceScreen: React.FC = () => {
     setNewItemPurchasePrice('');
     setNewItemHsn('');
 
-    // Add this item as a line
-    const calc = calculateLineGST({
-      qty: 1,
-      ratePaise: type === 'SALE' ? created.salePrice : created.purchasePrice,
-      discountType: 'PERCENT',
-      discountPercent: 0,
-      taxPercent: created.taxPercent,
-      taxIncluded: false,
-      withGst,
-      isInterState,
-    });
-
-    const newLine: InvoiceLine = {
-      id: `line-${Date.now()}`,
-      itemId: created.id,
-      itemName: created.name,
-      unit: created.unit,
-      qty: 1,
-      rate: type === 'SALE' ? created.salePrice : created.purchasePrice,
-      discountPercent: 0,
-      discountType: 'PERCENT',
-      discountAmount: 0,
-      taxPercent: created.taxPercent,
-      taxIncluded: false,
-      taxableAmount: calc.taxableAmountPaise,
-      cgst: calc.cgstPaise,
-      sgst: calc.sgstPaise,
-      igst: calc.igstPaise,
-      amount: calc.rowTotalPaise,
-      hsn: created.hsn,
-    };
-    setLines([...lines, newLine]);
+    // Automatically stage and add this new item to the active bill
+    handleAddSelectedStagedItems([
+      {
+        item: created,
+        qty: 1,
+        ratePaise: type === 'SALE' ? created.salePrice : created.purchasePrice,
+      },
+    ]);
   };
 
   // Validate and Save Invoice
@@ -816,123 +834,25 @@ export const InvoiceScreen: React.FC = () => {
         <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
           {/* SECTION 1: HEADER DETAILS (Party, Number, Dates, State) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 bg-surface-subtle/40 p-4 rounded-2xl border border-border">
-            {/* Party Picker */}
-            <div className="sm:col-span-2 space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-slate-primary">
-                  {isSale ? 'Customer' : 'Supplier'} <span className="text-rose-500">*</span>
-                </label>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleImportContactsForInvoice}
-                    className="text-[11px] text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2 py-0.5 rounded-lg font-bold flex items-center gap-1 transition-all"
-                    title="Import Saved Contacts from Mobile Phone"
-                  >
-                    <BookUser size={13} />
-                    <span>Phone Contacts</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowQuickPartyModal(true)}
-                    className="text-xs text-primary font-bold flex items-center gap-1 hover:underline"
-                  >
-                    <UserPlus size={13} />
-                    <span>+ Quick Add</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Instant Search Bar */}
-              <div className="relative">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-secondary" />
-                <input
-                  type="text"
-                  placeholder="Filter party by name or mobile number..."
-                  value={partySearchTerm}
-                  onChange={(e) => setPartySearchTerm(e.target.value)}
-                  className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-border bg-white text-xs font-semibold text-slate-primary focus:outline-none focus:border-primary shadow-xs"
-                />
-              </div>
-
-              <select
-                value={partyId}
-                onChange={(e) => {
-                  const id = e.target.value;
-                  setPartyId(id);
-                  const p = parties.find((item) => item.id === id);
-                  if (p) {
-                    setCustomerName(p.name);
-                    setCustomerPhone(p.phone || '');
-                  }
+            {/* Customer & Mobile Contact Picker */}
+            <div className="sm:col-span-2 p-3 sm:p-3.5 rounded-2xl border border-border bg-white shadow-xs">
+              <CustomerContactPicker
+                selectedPartyId={partyId}
+                customerName={customerName}
+                customerPhone={customerPhone}
+                isSale={isSale}
+                onSelectCustomer={({ partyId: pId, name, phone }) => {
+                  setPartyId(pId);
+                  setCustomerName(name);
+                  setCustomerPhone(phone);
                 }}
-                className="w-full h-11 px-3 rounded-xl border border-border bg-white text-xs font-semibold text-slate-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-              >
-                <option value="">Select Party</option>
-                {parties
-                  .filter((p) => !p.isDeleted)
-                  .filter((p) => {
-                    if (!partySearchTerm.trim()) return true;
-                    const q = partySearchTerm.toLowerCase();
-                    return p.name.toLowerCase().includes(q) || (p.phone && p.phone.includes(q));
-                  })
-                  .map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} {p.phone ? `(+91 ${p.phone})` : ''} • {p.type}
-                    </option>
-                  ))}
-              </select>
-              {selectedParty && (
-                <div className="text-[11px] text-slate-secondary flex items-center justify-between px-1">
-                  <span>{selectedParty.state || 'State: Not specified'}</span>
-                  <span>
-                    Balance: {selectedParty.openingType === 'RECEIVABLE' ? "You'll get" : "You'll give"}{' '}
-                    {formatINR(selectedParty.openingBalance)}
-                  </span>
-                </div>
-              )}
-
-              {/* Customer / Billed Name & Mobile Number (Exact name printed on PDF) */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-dashed border-border mt-1">
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[11px] font-bold text-slate-primary">
-                      {isSale ? 'Customer' : 'Supplier'} Name on Bill <span className="text-rose-500">*</span>
-                    </label>
-                    {selectedParty && selectedParty.name !== customerName && customerName.trim() && (
-                      <span className="text-[10px] text-emerald-600 font-bold">Custom Billed Name</span>
-                    )}
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Enter name to appear on Bill & PDF"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    className="w-full h-9 px-3 rounded-xl border border-border bg-white text-xs font-semibold text-slate-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[11px] font-bold text-slate-primary">
-                      Customer Mobile (WhatsApp)
-                    </label>
-                    {customerPhone && (
-                      <span className="text-[10px] text-emerald-600 font-bold">Direct Chat</span>
-                    )}
-                  </div>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">+91</span>
-                    <input
-                      type="tel"
-                      placeholder="10-digit mobile number"
-                      value={customerPhone}
-                      onChange={(e) => setCustomerPhone(e.target.value)}
-                      className="w-full h-9 pl-11 pr-3 rounded-xl border border-border bg-white text-xs font-semibold text-slate-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                    />
-                  </div>
-                </div>
-              </div>
+                onClearCustomer={() => {
+                  setPartyId('');
+                  setCustomerName('');
+                  setCustomerPhone('');
+                }}
+                onOpenQuickAddParty={() => setShowQuickPartyModal(true)}
+              />
             </div>
 
             {/* Invoice Number */}
@@ -1032,41 +952,47 @@ export const InvoiceScreen: React.FC = () => {
             </div>
           </div>
 
-          {/* SECTION 3: ITEM ROWS (UNLIMITED) */}
+          {/* SECTION 3: FAST ITEM SELECTION & BILL ITEMS */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-slate-primary">Items & Services</h3>
+            {/* 1. Fast Multi-Item Selection Area (Compact Tap-to-Select Grid) */}
+            <FastItemSelector
+              items={items}
+              type={type}
+              onAddSelectedItems={handleAddSelectedStagedItems}
+              onOpenQuickAddItem={() => setShowQuickItemModal(true)}
+            />
+
+            {/* 2. Bill Items Header */}
+            <div className="flex items-center justify-between pt-1">
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-extrabold text-slate-primary">
+                  Bill Items ({lines.length})
+                </h3>
+                {lines.length > 0 && (
+                  <span className="text-xs font-extrabold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg">
+                    Total: {formatINR(totals.grandTotalPaise)}
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowQuickItemModal(true)}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold text-primary bg-primary-light hover:bg-primary-light/80 flex items-center gap-1 transition-all"
-                >
-                  <PackagePlus size={13} />
-                  <span>+ New Item Master</span>
-                </button>
-                <button
-                  type="button"
                   onClick={() => handleAddLine()}
-                  className="px-3 py-1 rounded-lg text-xs font-bold text-white bg-primary hover:bg-primary-hover flex items-center gap-1 transition-all shadow-xs"
+                  className="px-2.5 py-1 rounded-xl text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 border border-slate-200 flex items-center gap-1 transition-all"
                 >
-                  <Plus size={13} />
-                  <span>+ Add Row</span>
+                  <Plus size={12} />
+                  <span>+ Custom Row</span>
                 </button>
               </div>
             </div>
 
             {lines.length === 0 ? (
-              <div className="p-8 border-2 border-dashed border-border rounded-2xl text-center space-y-2">
-                <Receipt className="mx-auto text-slate-muted" size={32} />
-                <p className="text-xs font-semibold text-slate-secondary">No item rows added yet</p>
-                <button
-                  type="button"
-                  onClick={() => handleAddLine()}
-                  className="px-4 py-2 rounded-xl text-xs font-bold bg-primary text-white"
-                >
-                  Add First Item
-                </button>
+              <div className="p-6 border-2 border-dashed border-border rounded-2xl text-center space-y-1.5 bg-slate-50/50">
+                <Receipt className="mx-auto text-slate-400" size={26} />
+                <p className="text-xs font-bold text-slate-700">No items added to this bill yet</p>
+                <p className="text-[11px] text-slate-500">
+                  Tap products in the selection area above, set quantities, and click <strong>"Add Selected Items"</strong>.
+                </p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -1201,23 +1127,49 @@ export const InvoiceScreen: React.FC = () => {
 
                       {/* Compact Inputs Row: Qty, Unit, Rate, Discount, GST, Row Total */}
                       <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 pt-1 border-t border-border/60 items-end">
-                        {/* Decimal Quantity */}
+                        {/* Decimal Quantity with Stepper */}
                         <div className="space-y-0.5">
                           <label className="text-[10px] font-bold text-slate-secondary uppercase">
                             Qty (e.g. 0.5)
                           </label>
-                          <input
-                            type="number"
-                            min="0.0001"
-                            step="any"
-                            inputMode="decimal"
-                            value={line.qty}
-                            onChange={(e) => {
-                              const val = parseFloat(e.target.value);
-                              handleUpdateLine(line.id, { qty: isNaN(val) ? 0 : val });
-                            }}
-                            className="w-full h-8 px-2 rounded-lg border border-border bg-white text-xs font-bold text-center focus:outline-none focus:border-primary"
-                          />
+                          <div className="flex items-center gap-0.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const step = line.unit === 'kg' || line.unit === 'g' ? 0.25 : 1;
+                                const next = Math.max(0.001, Math.round((line.qty - step) * 1000) / 1000);
+                                handleUpdateLine(line.id, { qty: next });
+                              }}
+                              className="w-6 h-8 rounded-l-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center font-extrabold text-xs active:scale-95 border border-r-0 border-border"
+                              title="Decrease"
+                            >
+                              -
+                            </button>
+                            <input
+                              type="number"
+                              min="0.0001"
+                              step="any"
+                              inputMode="decimal"
+                              value={line.qty}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value);
+                                handleUpdateLine(line.id, { qty: isNaN(val) ? 0 : val });
+                              }}
+                              className="w-full h-8 px-1 border-y border-border bg-white text-xs font-bold text-center focus:outline-none focus:border-primary"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const step = line.unit === 'kg' || line.unit === 'g' ? 0.25 : 1;
+                                const next = Math.round((line.qty + step) * 1000) / 1000;
+                                handleUpdateLine(line.id, { qty: next });
+                              }}
+                              className="w-6 h-8 rounded-r-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 flex items-center justify-center font-extrabold text-xs active:scale-95 border border-l-0 border-emerald-300"
+                              title="Increase"
+                            >
+                              +
+                            </button>
+                          </div>
                         </div>
 
                         {/* Unit Selector */}
@@ -1731,30 +1683,45 @@ export const InvoiceScreen: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
-                  <label className="font-bold text-slate-primary">Unit</label>
+                  <label className="font-bold text-slate-primary">Category</label>
                   <select
-                    value={newItemUnit}
-                    onChange={(e) => setNewItemUnit(e.target.value as UnitType)}
+                    value={newItemCategory}
+                    onChange={(e) => setNewItemCategory(e.target.value)}
                     className="w-full h-9 px-2 rounded-xl border border-border bg-white"
                   >
-                    {['pcs', 'kg', 'litre', 'box', 'meter', 'packet', 'dozen'].map((u) => (
-                      <option key={u} value={u}>
-                        {u}
+                    {['Sweets', 'Dry Fruits', 'Snacks', 'Drinks', 'Bakery', 'General'].map((c) => (
+                      <option key={c} value={c}>
+                        {c}
                       </option>
                     ))}
                   </select>
                 </div>
 
                 <div className="space-y-1">
-                  <label className="font-bold text-slate-primary">HSN / SAC</label>
-                  <input
-                    type="text"
-                    value={newItemHsn}
-                    onChange={(e) => setNewItemHsn(e.target.value)}
-                    className="w-full h-9 px-3 rounded-xl border border-border bg-white"
-                    placeholder="e.g. 1006"
-                  />
+                  <label className="font-bold text-slate-primary">Unit</label>
+                  <select
+                    value={newItemUnit}
+                    onChange={(e) => setNewItemUnit(e.target.value as UnitType)}
+                    className="w-full h-9 px-2 rounded-xl border border-border bg-white"
+                  >
+                    {['kg', 'g', 'pcs', 'box', 'packet', 'litre', 'bottle', 'dozen'].map((u) => (
+                      <option key={u} value={u}>
+                        {u}
+                      </option>
+                    ))}
+                  </select>
                 </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-slate-primary">HSN / SAC</label>
+                <input
+                  type="text"
+                  value={newItemHsn}
+                  onChange={(e) => setNewItemHsn(e.target.value)}
+                  className="w-full h-9 px-3 rounded-xl border border-border bg-white"
+                  placeholder="e.g. 2106"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
