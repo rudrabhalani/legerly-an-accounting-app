@@ -21,6 +21,8 @@ import {
   ChevronRight,
   ShieldCheck,
   PhoneCall,
+  Bell,
+  Smartphone,
 } from 'lucide-react';
 
 interface VyaparDrawerProps {
@@ -51,6 +53,8 @@ export const VyaparDrawer: React.FC<VyaparDrawerProps> = ({ isOpen, onClose }) =
   const openProfileModal = useLedgerlyStore((state) => state.openProfileModal);
   const openAuthModal = useLedgerlyStore((state) => state.openAuthModal);
   const openMultiUserModal = useLedgerlyStore((state) => state.openMultiUserModal);
+  const openRemindersModal = useLedgerlyStore((state) => state.openRemindersModal);
+  const reminders = useLedgerlyStore((state) => state.reminders);
   const users = useLedgerlyStore((state) => state.users);
   const currentUserId = useLedgerlyStore((state) => state.currentUserId);
 
@@ -425,15 +429,45 @@ export const VyaparDrawer: React.FC<VyaparDrawerProps> = ({ isOpen, onClose }) =
               </span>
             </button>
             <button
+              onClick={() => navigateTo(openRemindersModal)}
+              className="w-full px-4 py-2.5 flex items-center justify-between text-gray-700 hover:bg-gray-50"
+            >
+              <div className="flex items-center gap-3 font-semibold">
+                <Bell size={16} className="text-amber-600" />
+                <span>Reminders & Follow-ups</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                {reminders.filter((r) => !r.completed).length > 0 && (
+                  <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full">
+                    {reminders.filter((r) => !r.completed).length}
+                  </span>
+                )}
+                <ChevronRight size={14} className="text-gray-400" />
+              </div>
+            </button>
+            <button
               onClick={() => navigateTo(openSettings)}
               className="w-full px-4 py-2.5 flex items-center justify-between text-gray-700 hover:bg-gray-50"
             >
               <div className="flex items-center gap-3 font-semibold">
                 <Building2 size={16} className="text-gray-600" />
-                <span>App & Language Settings</span>
+                <span>App & Business Settings</span>
               </div>
               <ChevronRight size={14} className="text-gray-400" />
             </button>
+            <a
+              href="/app-release.apk"
+              download="Ledgerly-v1.0.apk"
+              className="w-full px-4 py-2.5 flex items-center justify-between text-indigo-700 hover:bg-indigo-50 bg-indigo-50/40"
+            >
+              <div className="flex items-center gap-3 font-bold">
+                <Smartphone size={16} className="text-indigo-600" />
+                <span>Download Android APK</span>
+              </div>
+              <span className="text-[10px] font-bold bg-indigo-600 text-white px-2 py-0.5 rounded-full">
+                Install
+              </span>
+            </a>
           </div>
         </div>
 

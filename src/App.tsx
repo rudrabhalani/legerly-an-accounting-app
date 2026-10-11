@@ -49,6 +49,7 @@ import { AgeingReportModal } from './components/modals/AgeingReportModal';
 import { CashFlowModal } from './components/modals/CashFlowModal';
 import { ChequesModal } from './components/modals/ChequesModal';
 import { LoanAccountsModal } from './components/modals/LoanAccountsModal';
+import { RemindersModal } from './components/modals/RemindersModal';
 import { ToastSnackbar } from './components/common/ToastSnackbar';
 import { initializeNativeApp } from './services/nativeService';
 
@@ -169,6 +170,7 @@ export function App() {
       <CashFlowModal />
       <ChequesModal />
       <LoanAccountsModal />
+      <RemindersModal />
       <PartyLedgerScreen />
       <AccountLedgerScreen />
 

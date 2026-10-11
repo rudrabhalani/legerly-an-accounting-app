@@ -16,6 +16,7 @@ import {
   exportStockToExcel,
 } from '../services/excelService';
 import { generateRegisterPdf } from '../services/pdfService';
+import { sharePdfDocument } from '../services/documentShareService';
 import {
   BarChart3,
   TrendingUp,
@@ -26,6 +27,7 @@ import {
   Calendar,
   FileSpreadsheet,
   Download,
+  Share2,
   AlertTriangle,
   Clock,
   BookOpen,
@@ -252,9 +254,22 @@ export const ReportsScreen: React.FC = () => {
                   doc.save(`Sale_Register_${activeFY}.pdf`);
                 }}
                 className="px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-primary border border-indigo-200 text-xs font-bold flex items-center gap-1"
+                title="Download PDF"
               >
                 <Download size={14} />
                 <span>PDF</span>
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const doc = generateRegisterPdf('Sale Register', saleInvoices, business);
+                  await sharePdfDocument(doc, `Sale_Register_${activeFY}.pdf`, 'Sale Register', `Sale Register for FY ${activeFY}`);
+                }}
+                className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 text-xs font-bold flex items-center gap-1"
+                title="Share via System Sheet"
+              >
+                <Share2 size={14} />
+                <span>Share</span>
               </button>
             </div>
           </div>
@@ -330,9 +345,22 @@ export const ReportsScreen: React.FC = () => {
                   doc.save(`Purchase_Register_${activeFY}.pdf`);
                 }}
                 className="px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-primary border border-indigo-200 text-xs font-bold flex items-center gap-1"
+                title="Download PDF"
               >
                 <Download size={14} />
                 <span>PDF</span>
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const doc = generateRegisterPdf('Purchase Register', purchaseInvoices, business);
+                  await sharePdfDocument(doc, `Purchase_Register_${activeFY}.pdf`, 'Purchase Register', `Purchase Register for FY ${activeFY}`);
+                }}
+                className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 text-xs font-bold flex items-center gap-1"
+                title="Share via System Sheet"
+              >
+                <Share2 size={14} />
+                <span>Share</span>
               </button>
             </div>
           </div>

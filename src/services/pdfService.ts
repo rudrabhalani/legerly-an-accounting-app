@@ -23,6 +23,12 @@ import {
 import { formatINR, formatPdfINR, formatFullDate, paiseToRupees } from '../utils/formatters';
 import { numberToIndianWords } from '../utils/gstCalc';
 import { normalizePhoneNumber } from '../utils/contactPicker';
+import {
+  shareDocument,
+  sharePdfDocument,
+  downloadPdfDocument,
+  downloadBlobInBrowser,
+} from './documentShareService';
 
 // In-memory cache for generated PDF and Image files per invoice version
 const pdfCache = new Map<string, { file: File; blob: Blob; doc: jsPDF }>();
@@ -1195,32 +1201,21 @@ export async function shareBillPdfFile({
     const imgFile = await generateInvoiceImageFile(invoice, business, party, printSettings);
     const caption = formatInvoiceMessageTemplate(templateToUse, invoice, business, party);
 
-    if (forceNativeSheet && typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
-      const canShare = typeof navigator.canShare === 'function' && navigator.canShare({ files: [imgFile] });
-      if (canShare) {
-        try {
-          await navigator.share({
-            files: [imgFile],
-            title: imgFile.name,
-            text: caption,
-          });
-          return {
-            success: true,
-            message: `Invoice image (${imgFile.name}) attached and shared directly.`,
-            fileName: imgFile.name,
-            sharedViaNativeSheet: true,
-          };
-        } catch (err: any) {
-          if (err?.name === 'AbortError') {
-            return {
-              success: true,
-              message: `Share dialog dismissed.`,
-              fileName: imgFile.name,
-              sharedViaNativeSheet: true,
-            };
-          }
-        }
-      }
+    if (forceNativeSheet) {
+      const shareRes = await shareDocument({
+        blob: imgFile,
+        fileName: imgFile.name,
+        mimeType: imgFile.type || 'image/png',
+        title: `Invoice #${cleanInvNo}`,
+        text: caption,
+        dialogTitle: `Share Invoice Image #${cleanInvNo}`,
+      });
+      return {
+        success: shareRes.success,
+        message: shareRes.message,
+        fileName: imgFile.name,
+        sharedViaNativeSheet: shareRes.method === 'NATIVE_SHARE_SHEET' || shareRes.method === 'WEB_SHARE_API',
+      };
     }
 
     // Direct WhatsApp customer chat
@@ -1260,42 +1255,19 @@ export async function shareBillPdfFile({
 
   const caption = formatInvoiceMessageTemplate(templateToUse, invoice, business, party);
 
-  // 1. Native Web Share API if explicitly requested (e.g. from Share Sheet button)
-  if (forceNativeSheet && typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
-    const canShareFiles = typeof navigator.canShare === 'function' && navigator.canShare({ files: [pdfFile] });
-    if (canShareFiles) {
-      try {
-        await navigator.share({
-          files: [pdfFile],
-          title: fileName,
-          text: caption,
-        });
-        return {
-          success: true,
-          message: `Invoice PDF (${fileName}) shared via system sheet.`,
-          fileName,
-          sharedViaNativeSheet: true,
-        };
-      } catch (err: any) {
-        if (err?.name === 'AbortError') {
-          return {
-            success: true,
-            message: `Share dialog dismissed.`,
-            fileName,
-            sharedViaNativeSheet: true,
-          };
-        }
-        console.warn('Native file share failed:', err);
-      }
-    }
+  // 1. Native Sharing Sheet if requested (Android Chooser or Web Share API)
+  if (forceNativeSheet) {
+    const shareRes = await sharePdfDocument(doc, fileName, `Invoice #${cleanInvNo}`, caption);
+    return {
+      success: shareRes.success,
+      message: shareRes.message,
+      fileName,
+      sharedViaNativeSheet: shareRes.method === 'NATIVE_SHARE_SHEET' || shareRes.method === 'WEB_SHARE_API',
+    };
   }
 
   // 2. Direct WhatsApp Customer Chat: Save PDF and open WhatsApp chat of customer directly
-  try {
-    doc.save(fileName);
-  } catch (err) {
-    console.warn('PDF save error:', err);
-  }
+  downloadPdfDocument(doc, fileName);
 
   const rawPhone = invoice.customerPhone || party?.phone || '';
   const phone = normalizePhoneNumber(rawPhone);

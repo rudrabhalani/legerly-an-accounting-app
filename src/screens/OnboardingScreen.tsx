@@ -69,8 +69,8 @@ export const OnboardingScreen: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-surface-muted flex flex-col justify-center items-center p-4">
-      <div className="w-full max-w-md bg-white rounded-3xl p-6 sm:p-8 shadow-floating border border-border flex flex-col">
+    <div className="min-h-[100dvh] max-h-[100dvh] bg-surface-muted flex flex-col justify-start sm:justify-center items-center p-4 py-6 sm:py-8 overflow-y-auto overscroll-contain">
+      <div className="w-full max-w-md bg-white rounded-3xl p-5 sm:p-8 shadow-floating border border-border flex flex-col my-auto flex-shrink-0">
         {/* Brand Header */}
         <div className="flex items-center justify-between pb-4 border-b border-border">
           <LedgerlyLogo size={36} showTagline />

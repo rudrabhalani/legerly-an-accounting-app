@@ -14,6 +14,8 @@ export const TopAppBar: React.FC = () => {
   const business = useLedgerlyStore((state) => state.business);
   const updateBusinessProfile = useLedgerlyStore((state) => state.updateBusinessProfile);
   const openSettings = useLedgerlyStore((state) => state.openSettings);
+  const openRemindersModal = useLedgerlyStore((state) => state.openRemindersModal);
+  const reminders = useLedgerlyStore((state) => state.reminders);
   const openProfileModal = useLedgerlyStore((state) => state.openProfileModal);
   const users = useLedgerlyStore((state) => state.users);
   const currentUserId = useLedgerlyStore((state) => state.currentUserId);
@@ -90,10 +92,14 @@ export const TopAppBar: React.FC = () => {
           {/* Notification Bell */}
           <button
             type="button"
+            onClick={openRemindersModal}
             className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors relative"
-            title="Notifications"
+            title="Reminders & Notifications"
           >
             <Bell size={20} strokeWidth={1.8} />
+            {reminders.filter((r) => !r.completed).length > 0 && (
+              <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-red-600 rounded-full ring-2 ring-white animate-pulse" />
+            )}
           </button>
 
           {/* Settings Gear */}

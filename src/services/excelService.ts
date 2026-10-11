@@ -1,11 +1,18 @@
 /**
  * Ledgerly Excel Export Service
  * Exports professional Indian accounting statements, registers, and tax summaries to .xlsx
+ * with formula injection security and cross-platform native sharing support.
  */
 
 import * as XLSX from 'xlsx';
 import { Transaction, Account, Party, Item, LedgerEntry, Invoice } from '../types';
 import { paiseToRupees } from '../utils/formatters';
+import {
+  sanitizeSpreadsheetRows,
+  downloadWorkbook,
+  shareWorkbook,
+  DocumentShareResult,
+} from './documentShareService';
 
 export function exportTransactionsToExcel(
   transactions: Transaction[],
@@ -16,7 +23,7 @@ export function exportTransactionsToExcel(
   const accountMap = new Map(accounts.map((a) => [a.id, a.nickname]));
   const partyMap = new Map(parties.map((p) => [p.id, p.name]));
 
-  const data = transactions.map((t, idx) => ({
+  const rawData = transactions.map((t, idx) => ({
     'Sr No': idx + 1,
     'Date': t.date,
     'Time': t.time,
@@ -29,17 +36,18 @@ export function exportTransactionsToExcel(
     'Notes': t.note || '',
   }));
 
+  const data = sanitizeSpreadsheetRows(rawData);
   const worksheet = XLSX.utils.json_to_sheet(data);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Transactions');
-  XLSX.writeFile(workbook, filename);
+  downloadWorkbook(workbook, filename);
 }
 
 export function exportSaleRegisterToExcel(
   invoices: Invoice[],
   filename: string = 'ledgerly-sale-register.xlsx'
 ) {
-  const data = invoices
+  const rawData = invoices
     .filter((i) => i.type === 'SALE' || i.type === 'SALE_RETURN')
     .map((inv, idx) => ({
       'Sr No': idx + 1,
@@ -63,17 +71,18 @@ export function exportSaleRegisterToExcel(
       'Status': inv.paidAmount >= inv.total ? 'Paid' : inv.paidAmount > 0 ? 'Partial' : 'Unpaid',
     }));
 
+  const data = sanitizeSpreadsheetRows(rawData);
   const worksheet = XLSX.utils.json_to_sheet(data);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Sale Register');
-  XLSX.writeFile(workbook, filename);
+  downloadWorkbook(workbook, filename);
 }
 
 export function exportPurchaseRegisterToExcel(
   invoices: Invoice[],
   filename: string = 'ledgerly-purchase-register.xlsx'
 ) {
-  const data = invoices
+  const rawData = invoices
     .filter((i) => i.type === 'PURCHASE' || i.type === 'PURCHASE_RETURN')
     .map((inv, idx) => ({
       'Sr No': idx + 1,
@@ -90,10 +99,11 @@ export function exportPurchaseRegisterToExcel(
       'Status': inv.paidAmount >= inv.total ? 'Paid' : inv.paidAmount > 0 ? 'Partial' : 'Unpaid',
     }));
 
+  const data = sanitizeSpreadsheetRows(rawData);
   const worksheet = XLSX.utils.json_to_sheet(data);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Purchase Register');
-  XLSX.writeFile(workbook, filename);
+  downloadWorkbook(workbook, filename);
 }
 
 export function exportGstSummaryToExcel(
@@ -102,7 +112,7 @@ export function exportGstSummaryToExcel(
   filename: string = 'ledgerly-gst-summary.xlsx'
 ) {
   // GSTR-1 Sales Summary
-  const salesData = salesInvoices.map((inv, idx) => ({
+  const rawSalesData = salesInvoices.map((inv, idx) => ({
     'Sr No': idx + 1,
     'Date': inv.date,
     'Invoice No': inv.number,
@@ -117,7 +127,7 @@ export function exportGstSummaryToExcel(
   }));
 
   // GSTR-3B Input Tax Credit
-  const purchaseData = purchaseInvoices.map((inv, idx) => ({
+  const rawPurchaseData = purchaseInvoices.map((inv, idx) => ({
     'Sr No': idx + 1,
     'Date': inv.date,
     'Bill No': inv.number,
@@ -130,13 +140,16 @@ export function exportGstSummaryToExcel(
     'Bill Value (₹)': paiseToRupees(inv.total),
   }));
 
+  const salesData = sanitizeSpreadsheetRows(rawSalesData);
+  const purchaseData = sanitizeSpreadsheetRows(rawPurchaseData);
+
   const workbook = XLSX.utils.book_new();
   const wsSales = XLSX.utils.json_to_sheet(salesData);
   const wsPurchase = XLSX.utils.json_to_sheet(purchaseData);
 
   XLSX.utils.book_append_sheet(workbook, wsSales, 'GSTR-1 (Outward)');
   XLSX.utils.book_append_sheet(workbook, wsPurchase, 'GSTR-3B (ITC)');
-  XLSX.writeFile(workbook, filename);
+  downloadWorkbook(workbook, filename);
 }
 
 export function exportPartyLedgerToExcel(
@@ -144,7 +157,7 @@ export function exportPartyLedgerToExcel(
   entries: LedgerEntry[],
   filename?: string
 ) {
-  const data = entries.map((e, idx) => ({
+  const rawData = entries.map((e, idx) => ({
     'Sr No': idx + 1,
     'Date': e.date,
     'Description': e.description,
@@ -154,17 +167,19 @@ export function exportPartyLedgerToExcel(
     'Balance Status': e.runningBalance >= 0 ? "You'll get (Dr)" : "You'll give (Cr)",
   }));
 
+  const data = sanitizeSpreadsheetRows(rawData);
   const worksheet = XLSX.utils.json_to_sheet(data);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Party Ledger');
-  XLSX.writeFile(workbook, filename || `${party.name.replace(/\s+/g, '_')}_ledger.xlsx`);
+  const targetName = filename || `${party.name.replace(/[^a-zA-Z0-9.-]/g, '_')}_ledger.xlsx`;
+  downloadWorkbook(workbook, targetName);
 }
 
 export function exportStockToExcel(
   items: Item[],
   filename: string = 'ledgerly-inventory.xlsx'
 ) {
-  const data = items.map((i, idx) => ({
+  const rawData = items.map((i, idx) => ({
     'Sr No': idx + 1,
     'Item Name': i.name,
     'Category': i.category,
@@ -177,8 +192,41 @@ export function exportStockToExcel(
     'Status': i.currentStock <= i.minStock ? 'LOW STOCK' : 'IN STOCK',
   }));
 
+  const data = sanitizeSpreadsheetRows(rawData);
   const worksheet = XLSX.utils.json_to_sheet(data);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Inventory');
-  XLSX.writeFile(workbook, filename);
+  downloadWorkbook(workbook, filename);
+}
+
+/**
+ * Share Excel file via Native Android Share Sheet or Web Share API
+ */
+export async function shareTransactionsExcel(
+  transactions: Transaction[],
+  accounts: Account[],
+  parties: Party[],
+  filename: string = 'ledgerly-transactions.xlsx'
+): Promise<DocumentShareResult> {
+  const accountMap = new Map(accounts.map((a) => [a.id, a.nickname]));
+  const partyMap = new Map(parties.map((p) => [p.id, p.name]));
+
+  const rawData = transactions.map((t, idx) => ({
+    'Sr No': idx + 1,
+    'Date': t.date,
+    'Time': t.time,
+    'Type': t.type === 'IN' ? 'Money In' : t.type === 'OUT' ? 'Money Out' : 'Transfer',
+    'Category': t.category,
+    'Party': t.partyId ? partyMap.get(t.partyId) || '—' : '—',
+    'Account': accountMap.get(t.accountId) || 'Cash / Bank',
+    'Mode': t.mode,
+    'Amount (₹)': paiseToRupees(t.amount),
+    'Notes': t.note || '',
+  }));
+
+  const data = sanitizeSpreadsheetRows(rawData);
+  const worksheet = XLSX.utils.json_to_sheet(data);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'Transactions');
+  return shareWorkbook(workbook, filename, 'Transactions Statement', 'Exported transactions statement');
 }

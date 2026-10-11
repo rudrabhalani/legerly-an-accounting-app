@@ -21,6 +21,7 @@ import {
 import { INDIAN_STATES, isInterStateSupply } from '../../data/indianStates';
 import { calculateLineGST, calculateInvoiceTotals } from '../../utils/gstCalc';
 import { generateInvoicePdf, shareBillPdfFile, formatInvoiceMessageTemplate } from '../../services/pdfService';
+import { sharePdfDocument, downloadPdfDocument } from '../../services/documentShareService';
 import { pickMobileContacts, normalizePhoneNumber } from '../../utils/contactPicker';
 import {
   X,
@@ -612,7 +613,7 @@ export const InvoiceScreen: React.FC = () => {
 
   };
 
-  const handleSave = async (andNew: boolean = false, andShare: boolean = false) => {
+  const handleSave = async (andNew: boolean = false, andShare: boolean = false, andNativeShare: boolean = false) => {
     if (!canEditDelete) {
       alert('Viewers cannot create or edit invoices.');
       return;
@@ -628,6 +629,32 @@ export const InvoiceScreen: React.FC = () => {
 
     confetti({ particleCount: 40, spread: 60, origin: { y: 0.8 } });
 
+    if (andNativeShare) {
+      setIsSharingPdf(true);
+      try {
+        const partyObj = parties.find((p) => p.id === invoice.partyId);
+        const defaultBankAcc = accounts.find((a) => a.id === invoice.accountId && a.type === 'BANK') || accounts.find((a) => a.type === 'BANK');
+        const printSettings = useLedgerlyStore.getState().printSettings;
+
+        const cleanInvNo = (invoice.number || 'BILL').replace(/[^a-zA-Z0-9.-]/g, '-');
+        const cleanCust = (invoice.partyName || partyObj?.name || 'Customer').trim().replace(/[^a-zA-Z0-9.-]/g, '-');
+        const fileName = `Invoice-${cleanInvNo}-${cleanCust}.pdf`;
+        
+        const doc = generateInvoicePdf(invoice, business, partyObj, defaultBankAcc, printSettings);
+        const defaultTemplate = printSettings?.messageTemplate ||
+          'Dear {customer_name}, here is your Bill #{bill_no} of ₹{total} from {shop_name}. Balance due: ₹{balance}. Thank you!';
+        const caption = formatInvoiceMessageTemplate(defaultTemplate, invoice, business, partyObj);
+
+        await sharePdfDocument(doc, fileName, `Invoice #${cleanInvNo}`, caption);
+        closeInvoiceScreen();
+      } catch (err: any) {
+        alert(`Sharing failed: ${err?.message || 'Unknown error'}`);
+      } finally {
+        setIsSharingPdf(false);
+      }
+      return;
+    }
+
     if (andShare) {
       setIsSharingPdf(true);
       try {
@@ -641,7 +668,7 @@ export const InvoiceScreen: React.FC = () => {
         const fileName = `Invoice-${cleanInvNo}-${cleanCust}.pdf`;
         
         const doc = generateInvoicePdf(invoice, business, partyObj, defaultBankAcc, printSettings);
-        doc.save(fileName);
+        downloadPdfDocument(doc, fileName);
 
         // 2. Format WhatsApp caption
         const defaultTemplate = printSettings?.messageTemplate ||
@@ -1538,7 +1565,18 @@ export const InvoiceScreen: React.FC = () => {
               ) : (
                 <Share2 size={14} />
               )}
-              <span>{isSharingPdf ? 'Opening WhatsApp...' : 'Save & Share (WhatsApp)'}</span>
+              <span>{isSharingPdf ? 'Opening WhatsApp...' : 'Save & WhatsApp'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleSave(false, false, true)}
+              disabled={isSharingPdf}
+              title="Save & share PDF document via native Android share sheet or system apps"
+              className="px-3.5 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold text-xs flex items-center gap-1.5 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed shadow-xs"
+            >
+              <Share2 size={14} />
+              <span>Share PDF</span>
             </button>
 
             <button

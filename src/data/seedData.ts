@@ -21,6 +21,7 @@ import {
   OtherIncomeCategory,
   PartyGroup,
   FirmSettings,
+  Reminder,
 } from '../types';
 
 export const INITIAL_BUSINESS: Business = {
@@ -248,3 +249,39 @@ export const DEFAULT_FIRM_SETTINGS: FirmSettings = {
   reminderMessageTemplate:
     'Dear {party_name}, your payment of ₹{amount} for Bill #{bill_no} from {firm_name} is due on {due_date}. Please pay at your earliest convenience. Thank you!',
 };
+
+export const INITIAL_REMINDERS: Reminder[] = [
+  {
+    id: 'rem-1',
+    title: 'Customer Payment Follow-up',
+    description: 'Call Ramesh Kumar for pending invoice payment balance',
+    dateTime: new Date(Date.now() + 86400000).toISOString(),
+    type: 'PAYMENT_FOLLOWUP',
+    linkedName: 'Ramesh Kumar',
+    amount: 1250000,
+    completed: false,
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'rem-2',
+    title: 'Cheque Clearance Verification',
+    description: 'Verify clearing of HDFC Bank Cheque #452109',
+    dateTime: new Date(Date.now() + 172800000).toISOString(),
+    type: 'CHEQUE_DUE',
+    linkedName: 'HDFC Cheque #452109',
+    amount: 2500000,
+    completed: false,
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: 'rem-3',
+    title: 'Inventory Re-order Alert',
+    description: 'Basmati Rice 5kg stock low (below 10 units)',
+    dateTime: new Date(Date.now() + 259200000).toISOString(),
+    type: 'LOW_STOCK',
+    linkedName: 'Basmati Rice 5kg',
+    completed: false,
+    createdAt: new Date().toISOString(),
+  },
+];
+

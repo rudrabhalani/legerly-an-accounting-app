@@ -593,3 +593,26 @@ export interface FirmSettings {
   reminderDaysAfterDue: number;
   reminderMessageTemplate: string;
 }
+
+export type ReminderType =
+  | 'PAYMENT_FOLLOWUP'
+  | 'INVOICE_DUE'
+  | 'CHEQUE_DUE'
+  | 'LOW_STOCK'
+  | 'TASK'
+  | 'GENERAL';
+
+export interface Reminder {
+  id: string;
+  title: string;
+  description?: string;
+  dateTime: string; // ISO date string
+  type: ReminderType;
+  linkedId?: string;
+  linkedName?: string;
+  amount?: number; // in paise
+  completed: boolean;
+  snoozedUntil?: string;
+  createdAt: string;
+}
+

@@ -36,6 +36,7 @@ import {
   ChequeStatus,
   LoanAccount,
   FirmSettings,
+  Reminder,
 } from '../types';
 import {
   INITIAL_BUSINESS,
@@ -54,9 +55,14 @@ import {
   DEFAULT_OTHER_INCOME_CATEGORIES,
   DEFAULT_PARTY_GROUPS,
   DEFAULT_FIRM_SETTINGS,
+  INITIAL_REMINDERS,
 } from '../data/seedData';
 import { getCurrentFinancialYear } from '../utils/financialYear';
 import { calculateAccountBalance, calculatePartyNetBalance } from '../utils/accounting';
+import {
+  scheduleReminderNotification,
+  cancelReminderNotification,
+} from '../services/reminderNotificationService';
 // Default print settings constant (exported for use in modals)
 export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
   paperSize: 'A4',
@@ -114,6 +120,7 @@ interface LedgerlyState {
   cheques: Cheque[];
   loanAccounts: LoanAccount[];
   firmSettings: FirmSettings;
+  reminders: Reminder[];
 
   // Financial Year
   financialYears: string[];
@@ -204,6 +211,17 @@ interface LedgerlyState {
   isLoanAccountsModalOpen: boolean;
   openLoanAccountsModal: () => void;
   closeLoanAccountsModal: () => void;
+
+  isRemindersModalOpen: boolean;
+  openRemindersModal: () => void;
+  closeRemindersModal: () => void;
+
+  // Reminders Actions
+  addReminder: (reminder: Omit<Reminder, 'id' | 'createdAt' | 'completed'>) => Reminder;
+  updateReminder: (id: string, updates: Partial<Reminder>) => void;
+  deleteReminder: (id: string) => void;
+  toggleReminderComplete: (id: string) => void;
+  snoozeReminder: (id: string, minutes: number) => void;
 
   // Security
   isLocked: boolean;
@@ -408,6 +426,7 @@ export const useLedgerlyStore = create<LedgerlyState>()(
       cheques: [],
       loanAccounts: [],
       firmSettings: DEFAULT_FIRM_SETTINGS,
+      reminders: INITIAL_REMINDERS,
 
       financialYears: [getCurrentFinancialYear()],
       activeFinancialYear: getCurrentFinancialYear(),
@@ -501,6 +520,73 @@ export const useLedgerlyStore = create<LedgerlyState>()(
       isLoanAccountsModalOpen: false,
       openLoanAccountsModal: () => set({ isLoanAccountsModalOpen: true }),
       closeLoanAccountsModal: () => set({ isLoanAccountsModalOpen: false }),
+
+      isRemindersModalOpen: false,
+      openRemindersModal: () => set({ isRemindersModalOpen: true }),
+      closeRemindersModal: () => set({ isRemindersModalOpen: false }),
+
+      addReminder: (remData) => {
+        const newReminder: Reminder = {
+          ...remData,
+          id: `rem-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          completed: false,
+          createdAt: new Date().toISOString(),
+        };
+        set((state) => ({ reminders: [newReminder, ...state.reminders] }));
+        scheduleReminderNotification(newReminder).catch(() => {});
+        return newReminder;
+      },
+
+      updateReminder: (id, updates) => {
+        set((state) => {
+          const updated = state.reminders.map((r) => (r.id === id ? { ...r, ...updates } : r));
+          const target = updated.find((r) => r.id === id);
+          if (target) {
+            if (target.completed) {
+              cancelReminderNotification(id).catch(() => {});
+            } else {
+              scheduleReminderNotification(target).catch(() => {});
+            }
+          }
+          return { reminders: updated };
+        });
+      },
+
+      deleteReminder: (id) => {
+        cancelReminderNotification(id).catch(() => {});
+        set((state) => ({ reminders: state.reminders.filter((r) => r.id !== id) }));
+      },
+
+      toggleReminderComplete: (id) => {
+        set((state) => {
+          const updated = state.reminders.map((r) => {
+            if (r.id === id) {
+              const nextState = !r.completed;
+              if (nextState) {
+                cancelReminderNotification(id).catch(() => {});
+              }
+              return { ...r, completed: nextState };
+            }
+            return r;
+          });
+          return { reminders: updated };
+        });
+      },
+
+      snoozeReminder: (id, minutes) => {
+        set((state) => {
+          const updated = state.reminders.map((r) => {
+            if (r.id === id) {
+              const snoozeDate = new Date(Date.now() + minutes * 60000).toISOString();
+              const snoozedRem = { ...r, dateTime: snoozeDate, snoozedUntil: snoozeDate, completed: false };
+              scheduleReminderNotification(snoozedRem).catch(() => {});
+              return snoozedRem;
+            }
+            return r;
+          });
+          return { reminders: updated };
+        });
+      },
 
       isLocked: false,
 

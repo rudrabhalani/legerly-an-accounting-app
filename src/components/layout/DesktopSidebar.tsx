@@ -20,6 +20,7 @@ import {
   CloudCheck,
   Shield,
   Lock,
+  Bell,
 } from 'lucide-react';
 
 export const DesktopSidebar: React.FC = () => {
@@ -31,6 +32,8 @@ export const DesktopSidebar: React.FC = () => {
   const openPaymentOut = useLedgerlyStore((state) => state.openPaymentOut);
   const openExpenseModal = useLedgerlyStore((state) => state.openExpenseModal);
   const openSettings = useLedgerlyStore((state) => state.openSettings);
+  const openRemindersModal = useLedgerlyStore((state) => state.openRemindersModal);
+  const reminders = useLedgerlyStore((state) => state.reminders);
   const openProfileModal = useLedgerlyStore((state) => state.openProfileModal);
   const openMultiUserModal = useLedgerlyStore((state) => state.openMultiUserModal);
   const openAuthModal = useLedgerlyStore((state) => state.openAuthModal);
@@ -292,6 +295,23 @@ export const DesktopSidebar: React.FC = () => {
         >
           <BarChart2 size={18} className="text-purple-400" />
           <span>Reports</span>
+        </button>
+
+        {/* Reminders */}
+        <button
+          type="button"
+          onClick={openRemindersModal}
+          className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold text-gray-300 hover:bg-[#1E293B] hover:text-white transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <Bell size={18} className="text-amber-400" />
+            <span>Reminders</span>
+          </div>
+          {reminders.filter((r) => !r.completed).length > 0 && (
+            <span className="text-[10px] font-bold bg-amber-500 text-slate-900 px-1.5 py-0.5 rounded-full">
+              {reminders.filter((r) => !r.completed).length}
+            </span>
+          )}
         </button>
 
         {/* Settings */}
