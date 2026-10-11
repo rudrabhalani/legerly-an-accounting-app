@@ -114,8 +114,9 @@ export const TransactionDetailModal: React.FC = () => {
   // Actions: PDF View/Print
   const handlePrintOrViewPdf = () => {
     try {
+      const printSettings = useLedgerlyStore.getState().printSettings;
       if (inv) {
-        const doc = generateInvoicePdf(inv, business, party, account);
+        const doc = generateInvoicePdf(inv, business, party, account, printSettings);
         const blobUrl = doc.output('bloburl');
         window.open(blobUrl, '_blank');
       } else if (party) {
@@ -133,8 +134,9 @@ export const TransactionDetailModal: React.FC = () => {
   // Actions: Download PDF
   const handleDownloadPdf = () => {
     try {
+      const printSettings = useLedgerlyStore.getState().printSettings;
       if (inv) {
-        const doc = generateInvoicePdf(inv, business, party, account);
+        const doc = generateInvoicePdf(inv, business, party, account, printSettings);
         const fileName = `${inv.number.replace(/[\/\\]/g, '_')}.pdf`;
         doc.save(fileName);
         setShareSuccess(`Downloaded ${fileName}`);

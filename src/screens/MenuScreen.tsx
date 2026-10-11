@@ -128,7 +128,7 @@ export const MenuScreen: React.FC = () => {
 
             {/* Purchase */}
             <div
-              onClick={() => openInvoiceScreen('PURCHASE')}
+              onClick={() => setActiveTab('purchase')}
               className="p-3.5 flex items-center justify-between hover:bg-gray-50 cursor-pointer transition-colors"
             >
               <div className="flex items-center gap-3">
@@ -138,7 +138,7 @@ export const MenuScreen: React.FC = () => {
                 <div>
                   <h4 className="text-sm font-bold text-gray-900">Purchase</h4>
                   <p className="text-[11px] text-gray-500">
-                    Purchase Bills, Payment Out, Purchase Order, Return
+                    Purchase In, Purchase Out / Return, Debit Notes & Vouchers
                   </p>
                 </div>
               </div>

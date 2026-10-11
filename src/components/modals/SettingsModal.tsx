@@ -37,6 +37,21 @@ import {
   openSystemAppSettings,
   AppNotificationPermission,
 } from '../../services/reminderNotificationService';
+import {
+  THEME_LIST,
+  renderInvoiceThemeHtml,
+  SAMPLE_INVOICE_DATA,
+} from '../../services/invoiceThemes';
+
+const PRESET_COLORS = [
+  { name: 'Indigo', hex: '#4F46E5' },
+  { name: 'Royal Blue', hex: '#2563EB' },
+  { name: 'Emerald Green', hex: '#059669' },
+  { name: 'Crimson Red', hex: '#DC2626' },
+  { name: 'Amber Orange', hex: '#D97706' },
+  { name: 'Purple', hex: '#7C3AED' },
+  { name: 'Slate Black', hex: '#0F172A' },
+];
 
 type SettingsTab =
   | 'GENERAL'
@@ -87,12 +102,16 @@ export const SettingsModal: React.FC = () => {
   const [enableTransactionDiscount, setEnableTransactionDiscount] = useState(firmSettings.enableTransactionDiscount);
   const [defaultPaymentTerms, setDefaultPaymentTerms] = useState<PaymentTerms>(firmSettings.defaultPaymentTerms || 'IMMEDIATE');
 
-  // Print Form
+  // Print & Theme Form
   const [paperSize, setPaperSize] = useState(printSettings.paperSize || 'A4');
   const [headerText, setHeaderText] = useState(printSettings.headerText || 'TAX INVOICE');
   const [footerText, setFooterText] = useState(printSettings.footerText || '');
   const [showQr, setShowQr] = useState(printSettings.showQr);
   const [showSignature, setShowSignature] = useState(printSettings.showSignature);
+  const [invoiceTheme, setInvoiceTheme] = useState<InvoiceTheme>(printSettings.invoiceTheme || 'MODERN');
+  const [accentColor, setAccentColor] = useState(printSettings.accentColor || '#4F46E5');
+  const [showCustomerName, setShowCustomerName] = useState(printSettings.showCustomerName !== false);
+  const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large'>(printSettings.fontSize || 'medium');
 
   // GST & Tax Form
   const [gstin, setGstin] = useState(business.gstin || '');
@@ -132,6 +151,10 @@ export const SettingsModal: React.FC = () => {
       setFooterText(printSettings.footerText || '');
       setShowQr(printSettings.showQr);
       setShowSignature(printSettings.showSignature);
+      setInvoiceTheme(printSettings.invoiceTheme || 'MODERN');
+      setAccentColor(printSettings.accentColor || '#4F46E5');
+      setShowCustomerName(printSettings.showCustomerName !== false);
+      setFontSize(printSettings.fontSize || 'medium');
       setTaxInclusive(firmSettings.taxInclusive);
       setMessageTemplate(printSettings.messageTemplate || '');
       setAutoShareWhatsApp(firmSettings.autoShareWhatsApp);
@@ -174,8 +197,12 @@ export const SettingsModal: React.FC = () => {
       footerText: footerText.trim(),
       showQr,
       showSignature,
+      invoiceTheme,
+      accentColor,
+      showCustomerName,
+      fontSize,
     });
-    triggerSaveNotification('Print & Layout settings saved.');
+    triggerSaveNotification('Invoice Themes & Print settings saved.');
   };
 
   const handleSaveTaxes = () => {
@@ -526,13 +553,13 @@ export const SettingsModal: React.FC = () => {
               </div>
             )}
 
-            {/* 3. INVOICE PRINT SETTINGS */}
+            {/* 3. INVOICE THEMES & PRINT SETTINGS */}
             {activeTab === 'INVOICE_PRINT' && (
               <div className="space-y-5">
                 <div className="border-b border-border pb-2 flex items-center justify-between">
                   <div>
-                    <h3 className="text-sm font-extrabold text-slate-900">Invoice Print & PDF Layout</h3>
-                    <p className="text-xs text-slate-500">Page size, thermal printing, and complete box totals</p>
+                    <h3 className="text-sm font-extrabold text-slate-900">Invoice Themes & PDF Layout</h3>
+                    <p className="text-xs text-slate-500">Vyapar-style ready-made templates, color picker, and customer name switch</p>
                   </div>
                   <button
                     type="button"
@@ -542,6 +569,95 @@ export const SettingsModal: React.FC = () => {
                     <Save size={14} />
                     <span>Save</span>
                   </button>
+                </div>
+
+                {/* Ready-made Themes Horizontal Gallery */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="font-bold text-slate-800 block text-xs">
+                      Select Ready-made Theme:
+                    </label>
+                    <span className="text-[11px] text-blue-600 font-bold">
+                      Selected: {THEME_LIST.find((t) => t.id === invoiceTheme)?.name || 'Modern'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-stretch gap-2.5 overflow-x-auto pb-2 scrollbar-thin">
+                    {THEME_LIST.map((th) => {
+                      const isSelected = invoiceTheme === th.id;
+                      return (
+                        <div
+                          key={th.id}
+                          onClick={() => setInvoiceTheme(th.id)}
+                          className={`min-w-[170px] sm:min-w-[190px] p-3 rounded-2xl border-2 cursor-pointer transition-all flex flex-col justify-between ${
+                            isSelected
+                              ? 'border-blue-600 bg-blue-50/60 shadow-sm ring-1 ring-blue-500/30'
+                              : 'border-slate-200 bg-white hover:border-slate-300'
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span
+                                className="w-3 h-3 rounded-full inline-block border border-black/10"
+                                style={{ backgroundColor: th.defaultColor }}
+                              />
+                              {isSelected && (
+                                <span className="w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-[10px]">
+                                  ✓
+                                </span>
+                              )}
+                            </div>
+                            <h4 className="font-bold text-xs text-slate-900">{th.name}</h4>
+                            <p className="text-[10px] text-slate-400 line-clamp-2 mt-0.5">{th.description}</p>
+                          </div>
+                          <span className={`text-[10px] font-bold mt-2 ${isSelected ? 'text-blue-600' : 'text-slate-500'}`}>
+                            {isSelected ? 'Active' : 'Tap to Pick'}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Accent Color Palette */}
+                <div>
+                  <label className="font-bold text-slate-700 block text-xs mb-1.5">
+                    Accent Color:
+                  </label>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {PRESET_COLORS.map((col) => (
+                      <button
+                        key={col.hex}
+                        type="button"
+                        onClick={() => setAccentColor(col.hex)}
+                        className={`w-6 h-6 rounded-full border-2 transition-transform ${
+                          accentColor === col.hex ? 'scale-125 border-slate-900' : 'border-white'
+                        }`}
+                        style={{ backgroundColor: col.hex }}
+                        title={col.name}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Customer Name Toggle (PART 3) */}
+                <div className="pt-2 border-t border-border">
+                  <label className="flex items-center justify-between p-3.5 rounded-2xl border-2 border-blue-500/30 bg-blue-50/40 cursor-pointer transition-all">
+                    <div>
+                      <span className="text-xs font-bold text-blue-900 block">
+                        Show Customer Name on Invoices & Bills
+                      </span>
+                      <span className="text-[11px] text-blue-700/80 block">
+                        When OFF, customer name is completely removed across all 8 themes without empty whitespace or "undefined"
+                      </span>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={showCustomerName}
+                      onChange={(e) => setShowCustomerName(e.target.checked)}
+                      className="w-5 h-5 text-blue-600 rounded"
+                    />
+                  </label>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
@@ -556,7 +672,23 @@ export const SettingsModal: React.FC = () => {
                     >
                       <option value="A4">A4 Full Page (Standard)</option>
                       <option value="A5">A5 Half Page</option>
-                      <option value="3INCH">3-Inch Thermal Receipt (80mm)</option>
+                      <option value="58mm">58mm Thermal Receipt (2-inch)</option>
+                      <option value="80mm">80mm Thermal Receipt (3-inch)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-slate-700 uppercase mb-1">
+                      Font Size
+                    </label>
+                    <select
+                      value={fontSize}
+                      onChange={(e) => setFontSize(e.target.value as any)}
+                      className="w-full px-3 py-2 rounded-xl border border-border text-xs font-semibold focus:outline-none"
+                    >
+                      <option value="small">Compact (Small)</option>
+                      <option value="medium">Standard (Medium)</option>
+                      <option value="large">Spacious (Large)</option>
                     </select>
                   </div>
 
@@ -573,7 +705,7 @@ export const SettingsModal: React.FC = () => {
                     />
                   </div>
 
-                  <div className="sm:col-span-2">
+                  <div>
                     <label className="block font-bold text-slate-700 uppercase mb-1">
                       Footer Note / Terms
                     </label>

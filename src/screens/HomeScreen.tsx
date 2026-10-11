@@ -20,6 +20,7 @@ import {
   Clock,
   ArrowDownLeft,
   ArrowUpRight,
+  ShoppingCart,
 } from 'lucide-react';
 import { calculatePartyNetBalance } from '../utils/accounting';
 
@@ -105,53 +106,65 @@ export const HomeScreen: React.FC = () => {
           <div className="bg-white rounded-2xl p-4 border border-gray-200/80 shadow-xs space-y-3">
             <span className="text-xs sm:text-sm font-extrabold text-gray-900 block">Quick Links</span>
 
-            <div className="grid grid-cols-4 gap-2 text-center">
+            <div className="grid grid-cols-5 gap-1.5 text-center">
               {/* 1: Add Txn */}
               <button
                 type="button"
                 onClick={() => openInvoiceScreen('SALE')}
                 className="flex flex-col items-center gap-1.5 p-1 rounded-xl hover:bg-gray-50 transition-all active:scale-95"
               >
-                <div className="w-11 h-11 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center text-[#E31E38] shadow-xs">
-                  <FileText size={20} strokeWidth={2.2} />
+                <div className="w-10 h-10 rounded-2xl bg-rose-50 border border-rose-100 flex items-center justify-center text-[#E31E38] shadow-xs">
+                  <FileText size={18} strokeWidth={2.2} />
                 </div>
-                <span className="text-[11px] font-bold text-gray-700 leading-tight">Add Txn</span>
+                <span className="text-[10px] sm:text-[11px] font-bold text-gray-700 leading-tight">Sale</span>
               </button>
 
-              {/* 2: Sale Report */}
+              {/* 2: Purchase */}
+              <button
+                type="button"
+                onClick={() => setActiveTab('purchase')}
+                className="flex flex-col items-center gap-1.5 p-1 rounded-xl hover:bg-gray-50 transition-all active:scale-95"
+              >
+                <div className="w-10 h-10 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 shadow-xs">
+                  <ShoppingCart size={18} strokeWidth={2.2} />
+                </div>
+                <span className="text-[10px] sm:text-[11px] font-bold text-gray-700 leading-tight">Purchase</span>
+              </button>
+
+              {/* 3: Sale Report */}
               <button
                 type="button"
                 onClick={() => setActiveTab('dashboard')}
                 className="flex flex-col items-center gap-1.5 p-1 rounded-xl hover:bg-gray-50 transition-all active:scale-95"
               >
-                <div className="w-11 h-11 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-[#1A73E8] shadow-xs">
-                  <FileSpreadsheet size={20} strokeWidth={2.2} />
+                <div className="w-10 h-10 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-[#1A73E8] shadow-xs">
+                  <FileSpreadsheet size={18} strokeWidth={2.2} />
                 </div>
-                <span className="text-[11px] font-bold text-gray-700 leading-tight">Sale Report</span>
+                <span className="text-[10px] sm:text-[11px] font-bold text-gray-700 leading-tight">Reports</span>
               </button>
 
-              {/* 3: Txn Settings */}
+              {/* 4: Txn Settings */}
               <button
                 type="button"
                 onClick={openPrintSettings}
                 className="flex flex-col items-center gap-1.5 p-1 rounded-xl hover:bg-gray-50 transition-all active:scale-95"
               >
-                <div className="w-11 h-11 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-[#1A73E8] shadow-xs">
-                  <Settings size={20} strokeWidth={2.2} />
+                <div className="w-10 h-10 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 shadow-xs">
+                  <Settings size={18} strokeWidth={2.2} />
                 </div>
-                <span className="text-[11px] font-bold text-gray-700 leading-tight">Txn Settings</span>
+                <span className="text-[10px] sm:text-[11px] font-bold text-gray-700 leading-tight">Themes</span>
               </button>
 
-              {/* 4: Show All */}
+              {/* 5: Show All */}
               <button
                 type="button"
                 onClick={openDayBook}
                 className="flex flex-col items-center gap-1.5 p-1 rounded-xl hover:bg-gray-50 transition-all active:scale-95"
               >
-                <div className="w-11 h-11 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-[#1A73E8] shadow-xs">
-                  <ArrowRight size={20} strokeWidth={2.2} />
+                <div className="w-10 h-10 rounded-2xl bg-blue-50 border border-blue-100 flex items-center justify-center text-[#1A73E8] shadow-xs">
+                  <ArrowRight size={18} strokeWidth={2.2} />
                 </div>
-                <span className="text-[11px] font-bold text-gray-700 leading-tight">Show All</span>
+                <span className="text-[10px] sm:text-[11px] font-bold text-gray-700 leading-tight">Day Book</span>
               </button>
             </div>
           </div>

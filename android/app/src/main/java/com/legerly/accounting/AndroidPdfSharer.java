@@ -1,53 +1,62 @@
 package com.legerly.accounting;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.ClipData;
+import android.content.ContentResolver;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.Build;
+import android.provider.ContactsContract;
+import android.provider.Settings;
 import android.util.Base64;
 import android.util.Log;
 import android.webkit.JavascriptInterface;
 import android.widget.Toast;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
+import org.json.JSONArray;
+import org.json.JSONObject;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
- * Native Android interface for direct WhatsApp & PDF sharing via FileProvider.
- * Solves the issue where only text was sent without the PDF file attached.
+ * Native Android interface for:
+ * 1. Direct WhatsApp & PDF sharing via FileProvider
+ * 2. High-performance device contacts reading directly from ContactsContract
  */
 public class AndroidPdfSharer {
-    private static final String TAG = "AndroidPdfSharer";
+    private static final String TAG = "AndroidNativeBridge";
     private final Activity activity;
 
     public AndroidPdfSharer(Activity activity) {
         this.activity = activity;
     }
 
-    /**
-     * Shares a PDF file directly to WhatsApp (com.whatsapp or com.whatsapp.w4b)
-     * with the customer's chat opened, PDF file attached, and caption prefilled.
-     * Falls back cleanly to Android system share sheet if WhatsApp is not installed.
-     */
+    // ==========================================
+    // 1. PDF & WHATSAPP SHARING METHODS
+    // ==========================================
+
     @JavascriptInterface
     public boolean sharePdfToWhatsApp(String base64Data, String fileName, String rawPhoneNumber, String caption) {
         return sharePdf(base64Data, fileName, rawPhoneNumber, caption, true);
     }
 
-    /**
-     * Shares a PDF file via Android native share chooser with FileProvider content URI.
-     */
     @JavascriptInterface
     public boolean sharePdfGeneric(String base64Data, String fileName, String caption) {
         return sharePdf(base64Data, fileName, null, caption, false);
     }
 
-    /**
-     * Returns true if running within the native Android wrapper with this interface active.
-     */
     @JavascriptInterface
     public boolean isNativeBridgeAvailable() {
         return true;
@@ -60,12 +69,10 @@ public class AndroidPdfSharer {
                 return false;
             }
 
-            // Remove data URI prefix if present (e.g., "data:application/pdf;base64,")
             int commaIndex = base64Data.indexOf(",");
             String cleanBase64 = commaIndex != -1 ? base64Data.substring(commaIndex + 1) : base64Data;
             byte[] pdfBytes = Base64.decode(cleanBase64, Base64.DEFAULT);
 
-            // Sanitize file name
             String safeFileName = (fileName != null && !fileName.trim().isEmpty())
                     ? fileName.replaceAll("[^a-zA-Z0-9._-]", "_")
                     : "Invoice.pdf";
@@ -73,7 +80,6 @@ public class AndroidPdfSharer {
                 safeFileName += ".pdf";
             }
 
-            // Save to app cache directory (Scoped storage safe for Android 10-14, no external storage permission needed)
             File cacheDir = activity.getCacheDir();
             File pdfFile = new File(cacheDir, safeFileName);
             FileOutputStream fos = new FileOutputStream(pdfFile);
@@ -81,11 +87,9 @@ public class AndroidPdfSharer {
             fos.flush();
             fos.close();
 
-            // Generate content URI via FileProvider
             String authority = activity.getPackageName() + ".fileprovider";
             Uri contentUri = FileProvider.getUriForFile(activity, authority, pdfFile);
 
-            // Construct ACTION_SEND Intent with application/pdf MIME type
             Intent shareIntent = new Intent(Intent.ACTION_SEND);
             shareIntent.setType("application/pdf");
             shareIntent.putExtra(Intent.EXTRA_STREAM, contentUri);
@@ -94,18 +98,16 @@ public class AndroidPdfSharer {
             }
             shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
 
-            // Grant ClipData URI permission for Android 10+ (API 29+)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 shareIntent.setClipData(ClipData.newRawUri("PDF Invoice", contentUri));
             }
 
-            // Format phone number for WhatsApp
             String cleanPhone = rawPhoneNumber != null ? rawPhoneNumber.replaceAll("[^0-9]", "") : "";
             if (cleanPhone.startsWith("0")) {
                 cleanPhone = cleanPhone.substring(1);
             }
             if (cleanPhone.length() == 10) {
-                cleanPhone = "91" + cleanPhone; // Default country code if 10 digits
+                cleanPhone = "91" + cleanPhone;
             }
 
             if (targetWhatsApp) {
@@ -116,7 +118,6 @@ public class AndroidPdfSharer {
                     String pkg = isWhatsAppStandard ? "com.whatsapp" : "com.whatsapp.w4b";
                     shareIntent.setPackage(pkg);
                     if (!cleanPhone.isEmpty()) {
-                        // Direct customer chat jid extra: [phone]@s.whatsapp.net
                         shareIntent.putExtra("jid", cleanPhone + "@s.whatsapp.net");
                     }
 
@@ -130,7 +131,6 @@ public class AndroidPdfSharer {
                 }
             }
 
-            // Launch standard Android Chooser if WhatsApp was not selected or not installed
             Intent chooser = Intent.createChooser(shareIntent, "Share Invoice PDF");
             chooser.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             activity.startActivity(chooser);
@@ -150,6 +150,125 @@ public class AndroidPdfSharer {
         } catch (PackageManager.NameNotFoundException e) {
             return false;
         }
+    }
+
+    // ==========================================
+    // 2. NATIVE CONTACTS READING & PERMISSIONS
+    // ==========================================
+
+    @JavascriptInterface
+    public boolean hasContactsPermission() {
+        return ContextCompat.checkSelfPermission(activity, Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    @JavascriptInterface
+    public void requestContactsPermission() {
+        activity.runOnUiThread(() -> {
+            ActivityCompat.requestPermissions(activity, new String[]{Manifest.permission.READ_CONTACTS}, 101);
+        });
+    }
+
+    @JavascriptInterface
+    public void openAppSettings() {
+        try {
+            Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+            Uri uri = Uri.fromParts("package", activity.getPackageName(), null);
+            intent.setData(uri);
+            activity.startActivity(intent);
+        } catch (Exception e) {
+            Log.e(TAG, "Error opening app settings", e);
+        }
+    }
+
+    /**
+     * Directly queries Android's ContactsContract to get all phone contacts.
+     * Works on Android 6 through Android 14+ with zero plugin dependencies.
+     * Returns JSON string: [{"id": "...", "name": "...", "phone": "9876543210", "displayPhone": "+91 9876543210"}]
+     */
+    @JavascriptInterface
+    public String getDeviceContacts() {
+        if (!hasContactsPermission()) {
+            Log.w(TAG, "getDeviceContacts called without READ_CONTACTS permission");
+            return "[]";
+        }
+
+        List<JSONObject> contactList = new ArrayList<>();
+        Set<String> seenKeys = new HashSet<>();
+
+        ContentResolver resolver = activity.getContentResolver();
+        Uri uri = ContactsContract.CommonDataKinds.Phone.CONTENT_URI;
+        String[] projection = new String[]{
+                ContactsContract.CommonDataKinds.Phone.CONTACT_ID,
+                ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
+                ContactsContract.CommonDataKinds.Phone.NUMBER
+        };
+
+        Cursor cursor = null;
+        try {
+            cursor = resolver.query(uri, projection, null, null, ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC");
+            if (cursor != null) {
+                int idCol = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.CONTACT_ID);
+                int nameCol = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME);
+                int numCol = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER);
+
+                while (cursor.moveToNext()) {
+                    String id = idCol != -1 ? cursor.getString(idCol) : "";
+                    String name = nameCol != -1 ? cursor.getString(nameCol) : "";
+                    String number = numCol != -1 ? cursor.getString(numCol) : "";
+
+                    if (name == null) name = "";
+                    name = name.trim();
+
+                    if (number == null) number = "";
+                    String rawNumber = number.trim();
+
+                    // Normalize phone number (digits only, strip leading 0 or +91 for 10-digit Indian numbers)
+                    String digitsOnly = rawNumber.replaceAll("[^0-9]", "");
+                    String cleanPhone = digitsOnly;
+                    if (cleanPhone.startsWith("91") && cleanPhone.length() == 12) {
+                        cleanPhone = cleanPhone.substring(2);
+                    } else if (cleanPhone.startsWith("0") && cleanPhone.length() == 11) {
+                        cleanPhone = cleanPhone.substring(1);
+                    }
+
+                    if (name.isEmpty() && cleanPhone.isEmpty()) continue;
+
+                    String displayName = name.isEmpty() ? ("Contact " + cleanPhone) : name;
+                    String dedupKey = displayName.toLowerCase() + "|" + cleanPhone;
+                    if (seenKeys.contains(dedupKey)) continue;
+                    seenKeys.add(dedupKey);
+
+                    JSONObject item = new JSONObject();
+                    item.put("id", id.isEmpty() ? ("c-" + cleanPhone) : id);
+                    item.put("name", displayName);
+                    item.put("phone", cleanPhone);
+                    item.put("displayPhone", cleanPhone.length() == 10 ? ("+91 " + cleanPhone) : rawNumber);
+                    contactList.add(item);
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error querying ContactsContract", e);
+        } finally {
+            if (cursor != null) cursor.close();
+        }
+
+        // Sort alphabetically by name
+        Collections.sort(contactList, new Comparator<JSONObject>() {
+            @Override
+            public int compare(JSONObject a, JSONObject b) {
+                String nameA = a.optString("name", "");
+                String nameB = b.optString("name", "");
+                return nameA.compareToIgnoreCase(nameB);
+            }
+        });
+
+        JSONArray jsonArray = new JSONArray();
+        for (JSONObject obj : contactList) {
+            jsonArray.put(obj);
+        }
+
+        Log.d(TAG, "Loaded " + jsonArray.length() + " contacts from Android ContactsContract");
+        return jsonArray.toString();
     }
 
     private void showToast(final String message) {

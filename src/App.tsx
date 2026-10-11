@@ -19,8 +19,10 @@ import { PartiesScreen } from './screens/PartiesScreen';
 import { ReportsScreen } from './screens/ReportsScreen';
 import { PartyLedgerScreen } from './screens/PartyLedgerScreen';
 import { AccountLedgerScreen } from './screens/AccountLedgerScreen';
+import { PurchaseScreen } from './screens/PurchaseScreen';
 
 // Modals
+import { PurchaseEntryModal } from './components/modals/PurchaseEntryModal';
 import { MoneyInModal } from './components/modals/MoneyInModal';
 import { MoneyOutModal } from './components/modals/MoneyOutModal';
 import { TransferModal } from './components/modals/TransferModal';
@@ -123,7 +125,7 @@ export function App() {
         <TopAppBar />
 
         {/* Main Content View based on activeTab */}
-        <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-2">
+        <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-2 pb-28 lg:pb-8">
           {activeTab === 'home' && <HomeScreen />}
           {activeTab === 'dashboard' && <DashboardScreen />}
           {(activeTab === 'items' || activeTab === 'stock') && <StockScreen />}
@@ -132,6 +134,7 @@ export function App() {
           {activeTab === 'parties' && <PartiesScreen />}
           {activeTab === 'bankLedger' && <BankLedgerScreen />}
           {activeTab === 'reports' && <ReportsScreen />}
+          {activeTab === 'purchase' && <PurchaseScreen />}
         </main>
 
         {/* Bottom Navigation on Mobile (Hidden on Desktop lg:hidden) */}
@@ -141,6 +144,7 @@ export function App() {
       </div>
 
       {/* Global Modals & Overlays */}
+      <PurchaseEntryModal />
       <PeriodCashflowModal />
       <QuickAddSheet />
       <InvoiceScreen />

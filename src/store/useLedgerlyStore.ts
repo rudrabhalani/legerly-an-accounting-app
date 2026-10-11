@@ -37,6 +37,9 @@ import {
   LoanAccount,
   FirmSettings,
   Reminder,
+  PurchaseEntry,
+  PurchaseEntryType,
+  PurchaseSettings,
 } from '../types';
 import {
   INITIAL_BUSINESS,
@@ -80,6 +83,13 @@ export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
   showQr: true,
   showSignature: true,
   showBalanceDue: true,
+  showCustomerName: true,
+  showCustomerPhone: true,
+  showCustomerAddress: true,
+  showBankDetails: true,
+  showTerms: true,
+  invoiceTheme: 'MODERN',
+  accentColor: '#4F46E5',
   fontSize: 'medium',
   copies: 1,
   language: 'en',
@@ -87,6 +97,64 @@ export const DEFAULT_PRINT_SETTINGS: PrintSettings = {
   selectedPrinterName: 'Default System Printer',
   messageTemplate: 'Dear {customer_name}, here is your Bill #{bill_no} of ₹{total} from {shop_name}. Balance due: ₹{balance}. Thank you!',
 };
+
+export const DEFAULT_PURCHASE_SETTINGS: PurchaseSettings = {
+  defaultPaymentMode: 'CASH',
+  enableItemDetailsByDefault: false,
+  autoRoundOff: true,
+};
+
+export const INITIAL_PURCHASES: PurchaseEntry[] = [
+  {
+    id: 'pur-seed-1',
+    type: 'PURCHASE_IN',
+    voucherNumber: 'PUR-2627-001',
+    supplierId: 'party-sup-dairy',
+    supplierName: 'Gujarat Dairy & Sugar Suppliers',
+    supplierPhone: '9825102030',
+    amount: 4500000, // ₹45,000.00
+    paymentMode: 'CREDIT',
+    date: '2026-10-10',
+    note: '50kg Pure Ghee & Sugar bags received',
+    items: [
+      { id: 'pi-1', itemName: 'Pure Desi Ghee 15kg Tin', qty: 3, unit: 'tin', rate: 1100000, amount: 3300000 },
+      { id: 'pi-2', itemName: 'Refined Sugar 50kg Bag', qty: 3, unit: 'bag', rate: 400000, amount: 1200000 },
+    ],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'pur-seed-2',
+    type: 'PURCHASE_OUT',
+    voucherNumber: 'PRET-2627-001',
+    supplierId: 'party-sup-dairy',
+    supplierName: 'Gujarat Dairy & Sugar Suppliers',
+    supplierPhone: '9825102030',
+    amount: 1100000, // ₹11,000.00
+    paymentMode: 'CREDIT',
+    date: '2026-10-11',
+    note: 'Returned 1 tin damaged seal',
+    items: [
+      { id: 'pi-3', itemName: 'Pure Desi Ghee 15kg Tin (Damaged)', qty: 1, unit: 'tin', rate: 1100000, amount: 1100000 },
+    ],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: 'pur-seed-3',
+    type: 'DEBIT_NOTE',
+    voucherNumber: 'DN-2627-001',
+    supplierId: 'party-sup-dairy',
+    supplierName: 'Gujarat Dairy & Sugar Suppliers',
+    supplierPhone: '9825102030',
+    amount: 250000, // ₹2,500.00
+    paymentMode: 'CREDIT',
+    date: '2026-10-12',
+    note: 'Price difference discount rebate credit note from supplier',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+];
 
 interface PendingUserInvite {
   name: string;
@@ -126,11 +194,23 @@ interface LedgerlyState {
   financialYears: string[];
   activeFinancialYear: string;
 
+  purchases: PurchaseEntry[];
+  purchaseSettings: PurchaseSettings;
+  isPurchaseModalOpen: boolean;
+  purchaseModalType: PurchaseEntryType;
+  selectedPurchaseToEdit: PurchaseEntry | null;
+  openPurchaseModal: (type?: PurchaseEntryType, entryToEdit?: PurchaseEntry | null) => void;
+  closePurchaseModal: () => void;
+  addPurchaseEntry: (entry: Omit<PurchaseEntry, 'id' | 'voucherNumber' | 'createdAt' | 'updatedAt'>) => PurchaseEntry;
+  updatePurchaseEntry: (id: string, updates: Partial<PurchaseEntry>) => void;
+  deletePurchaseEntry: (id: string) => void;
+  updatePurchaseSettings: (settings: Partial<PurchaseSettings>) => void;
+
   // Navigation & UI State
   period: DateFilterPeriod;
   customDateRange: { start: string; end: string };
   lastDeletedTransaction: Transaction | null;
-  activeTab: 'home' | 'dashboard' | 'items' | 'menu' | 'getDesktop' | 'parties' | 'stock' | 'bankLedger' | 'reports';
+  activeTab: 'home' | 'dashboard' | 'items' | 'menu' | 'getDesktop' | 'parties' | 'stock' | 'bankLedger' | 'reports' | 'purchase';
 
 
   // Modals & Screens
@@ -233,7 +313,7 @@ interface LedgerlyState {
   // Base Actions
   setPeriod: (period: DateFilterPeriod) => void;
   setCustomDateRange: (range: { start: string; end: string }) => void;
-  setActiveTab: (tab: 'home' | 'dashboard' | 'items' | 'menu' | 'getDesktop' | 'parties' | 'stock' | 'bankLedger' | 'reports') => void;
+  setActiveTab: (tab: 'home' | 'dashboard' | 'items' | 'menu' | 'getDesktop' | 'parties' | 'stock' | 'bankLedger' | 'reports' | 'purchase') => void;
   setLanguage: (lang: LanguageCode) => void;
   updateBusiness: (updates: Partial<Business>) => void;
   unlockApp: () => void;
@@ -431,6 +511,12 @@ export const useLedgerlyStore = create<LedgerlyState>()(
       financialYears: [getCurrentFinancialYear()],
       activeFinancialYear: getCurrentFinancialYear(),
 
+      purchases: INITIAL_PURCHASES,
+      purchaseSettings: DEFAULT_PURCHASE_SETTINGS,
+      isPurchaseModalOpen: false,
+      purchaseModalType: 'PURCHASE_IN',
+      selectedPurchaseToEdit: null,
+
       period: 'THIS_MONTH',
       customDateRange: { start: '', end: '' },
       lastDeletedTransaction: null,
@@ -524,6 +610,155 @@ export const useLedgerlyStore = create<LedgerlyState>()(
       isRemindersModalOpen: false,
       openRemindersModal: () => set({ isRemindersModalOpen: true }),
       closeRemindersModal: () => set({ isRemindersModalOpen: false }),
+
+      openPurchaseModal: (type = 'PURCHASE_IN', entryToEdit = null) =>
+        set({ isPurchaseModalOpen: true, purchaseModalType: type, selectedPurchaseToEdit: entryToEdit }),
+      closePurchaseModal: () =>
+        set({ isPurchaseModalOpen: false, selectedPurchaseToEdit: null }),
+
+      addPurchaseEntry: (entryData) => {
+        const id = `pur-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+        const now = new Date().toISOString();
+        const state = get();
+
+        // Sequential voucher number
+        const typeCount = state.purchases.filter((p) => p.type === entryData.type).length + 1;
+        const fy = state.activeFinancialYear.replace('20', '').replace('-', '');
+        const prefix = entryData.type === 'PURCHASE_IN' ? 'PIN' : entryData.type === 'PURCHASE_OUT' ? 'POUT' : 'DN';
+        const voucherNumber = `${prefix}-${fy}-${String(typeCount).padStart(3, '0')}`;
+
+        // Ensure party exists
+        let supplierId = entryData.supplierId || entryData.partyId;
+        const supplierName = (entryData.supplierName || entryData.partyName || 'Supplier').trim();
+        const supplierPhone = entryData.supplierPhone || entryData.partyPhone || '';
+        let updatedParties = [...state.parties];
+        let existingParty = updatedParties.find(
+          (p) =>
+            !p.isDeleted &&
+            (p.id === supplierId || (p.name && p.name.trim().toLowerCase() === supplierName.toLowerCase()))
+        );
+
+        if (!existingParty) {
+          const newParty: Party = {
+            id: supplierId || `party-${Date.now()}`,
+            name: supplierName,
+            phone: supplierPhone,
+            type: 'SUPPLIER',
+            openingBalance: 0,
+            openingType: 'PAYABLE',
+            createdAt: now,
+            updatedAt: now,
+            isDeleted: false,
+          };
+          (newParty as any).balance = 0;
+          updatedParties.unshift(newParty);
+          existingParty = newParty;
+          supplierId = newParty.id;
+        }
+
+        // Auto-update supplier balance
+        if (existingParty) {
+          updatedParties = updatedParties.map((p) => {
+            if (p.id !== existingParty!.id) return p;
+            const prevBal = (p as any).balance ?? (p.openingType === 'PAYABLE' ? p.openingBalance : -p.openingBalance);
+            let currentBal = prevBal;
+            if (entryData.type === 'PURCHASE_IN') {
+              if (entryData.paymentMode === 'CREDIT') {
+                currentBal += entryData.amount;
+              }
+            } else if (entryData.type === 'PURCHASE_OUT' || entryData.type === 'DEBIT_NOTE') {
+              currentBal -= entryData.amount;
+            }
+            return {
+              ...p,
+              openingBalance: Math.abs(currentBal),
+              openingType: currentBal >= 0 ? 'PAYABLE' : 'RECEIVABLE',
+              balance: Math.abs(currentBal),
+              updatedAt: now,
+            };
+          });
+        }
+
+        // Optional inventory stock updates if items provided
+        let updatedItems = [...state.items];
+        if (entryData.items && entryData.items.length > 0) {
+          entryData.items.forEach((itemLine) => {
+            updatedItems = updatedItems.map((it) => {
+              if (it.name.trim().toLowerCase() === itemLine.itemName.trim().toLowerCase()) {
+                const delta = entryData.type === 'PURCHASE_IN' ? itemLine.qty : -itemLine.qty;
+                return { ...it, currentStock: Math.max(0, it.currentStock + delta) };
+              }
+              return it;
+            });
+          });
+        }
+
+        // Record cashbook / bank transaction if immediate payment
+        const newTransactions: Transaction[] = [];
+        if (entryData.paymentMode !== 'CREDIT') {
+          const defaultAccount = state.accounts[0];
+          if (defaultAccount) {
+            newTransactions.push({
+              id: `txn-${Date.now()}-pur`,
+              type: entryData.type === 'PURCHASE_IN' ? 'OUT' : 'IN',
+              amount: entryData.amount,
+              accountId: defaultAccount.id,
+              partyId: supplierId,
+              mode: entryData.paymentMode as any,
+              category: 'Purchase',
+              date: entryData.date,
+              time: '12:00',
+              note: `${entryData.type === 'PURCHASE_IN' ? 'Purchase' : 'Return/Debit'} #${voucherNumber} (${supplierName})`,
+              createdAt: now,
+              updatedAt: now,
+              isDeleted: false,
+            });
+          }
+        }
+
+        const newEntry: PurchaseEntry = {
+          ...entryData,
+          id,
+          voucherNumber,
+          supplierId: supplierId || `party-${Date.now()}`,
+          partyId: supplierId || `party-${Date.now()}`,
+          supplierName,
+          partyName: supplierName,
+          supplierPhone,
+          partyPhone: supplierPhone,
+          createdAt: now,
+          updatedAt: now,
+        };
+
+        set({
+          purchases: [newEntry, ...state.purchases],
+          parties: updatedParties,
+          items: updatedItems,
+          transactions: [...newTransactions, ...state.transactions],
+        });
+
+        return newEntry;
+      },
+
+      updatePurchaseEntry: (id, updates) => {
+        set((state) => ({
+          purchases: state.purchases.map((p) =>
+            p.id === id ? { ...p, ...updates, updatedAt: new Date().toISOString() } : p
+          ),
+        }));
+      },
+
+      deletePurchaseEntry: (id) => {
+        set((state) => ({
+          purchases: state.purchases.filter((p) => p.id !== id),
+        }));
+      },
+
+      updatePurchaseSettings: (settingsUpdates) => {
+        set((state) => ({
+          purchaseSettings: { ...state.purchaseSettings, ...settingsUpdates },
+        }));
+      },
 
       addReminder: (remData) => {
         const newReminder: Reminder = {

@@ -123,6 +123,7 @@ export interface Party {
   groupId?: string;     // reference to PartyGroup.id
   loyaltyPoints?: number;
   notes?: string;
+  balance?: number; // in paise
   createdAt: string;
   updatedAt: string;
   isDeleted: boolean;
@@ -340,11 +341,19 @@ export interface PrintSettings {
   headerText: string;
   footerText: string;
   showTax: boolean;
+  showGstBreakup?: boolean;
   showDiscount: boolean;
   showHsn: boolean;
   showQr: boolean;
   showSignature: boolean;
   showBalanceDue: boolean;
+  showCustomerName: boolean;
+  showCustomerPhone?: boolean;
+  showCustomerAddress?: boolean;
+  showBankDetails?: boolean;
+  showTerms?: boolean;
+  invoiceTheme?: InvoiceTheme;
+  accentColor?: string;
   fontSize: 'small' | 'medium' | 'large';
   copies: number;
   language: LanguageCode;
@@ -406,7 +415,53 @@ export interface BillWisePnlRow {
 // VYAPAR-GRADE ADDITIONS
 // ─────────────────────────────────────────────────────────────
 
-export type InvoiceTheme = 'CLASSIC' | 'MODERN' | 'MINIMAL' | 'THERMAL' | 'PROFESSIONAL';
+export type InvoiceTheme = 
+  | 'CLASSIC' 
+  | 'MODERN' 
+  | 'GST_TAX' 
+  | 'MINIMAL' 
+  | 'THERMAL' 
+  | 'ELEGANT' 
+  | 'COLORFUL' 
+  | 'LANDSCAPE' 
+  | 'PROFESSIONAL';
+
+export type PurchaseEntryType = 'PURCHASE_IN' | 'PURCHASE_OUT' | 'DEBIT_NOTE';
+
+export interface PurchaseItemLine {
+  id: string;
+  itemName: string;
+  qty: number;
+  unit?: string;
+  rate: number; // in paise
+  amount: number; // in paise
+}
+
+export interface PurchaseEntry {
+  id: string;
+  type: PurchaseEntryType;
+  voucherNumber: string;
+  supplierId?: string;
+  supplierName?: string;
+  supplierPhone?: string;
+  partyId?: string;
+  partyName?: string;
+  partyPhone?: string;
+  amount: number; // in paise
+  paymentMode: 'CASH' | 'UPI' | 'BANK' | 'CHEQUE' | 'CREDIT';
+  date: string; // YYYY-MM-DD
+  note?: string;
+  items?: PurchaseItemLine[];
+  createdAt: string;
+  updatedAt: string;
+  isDeleted?: boolean;
+}
+
+export interface PurchaseSettings {
+  defaultPaymentMode: 'CASH' | 'CREDIT' | 'UPI' | 'BANK';
+  enableItemDetailsByDefault: boolean;
+  autoRoundOff: boolean;
+}
 
 export type EstimateStatus = 'OPEN' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED';
 export type SaleOrderStatus = 'OPEN' | 'PROCESSING' | 'DISPATCHED' | 'CLOSED';

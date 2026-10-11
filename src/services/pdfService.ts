@@ -30,6 +30,20 @@ import {
   downloadBlobInBrowser,
   sharePdfToWhatsAppDirect,
 } from './documentShareService';
+import { renderInvoiceThemeHtml } from './invoiceThemes';
+import { DEFAULT_PRINT_SETTINGS } from '../store/useLedgerlyStore';
+
+export function hexToRgb(hex?: string): [number, number, number] {
+  if (!hex) return [79, 70, 229];
+  const clean = hex.replace('#', '').trim();
+  if (clean.length === 6) {
+    const r = parseInt(clean.substring(0, 2), 16);
+    const g = parseInt(clean.substring(2, 4), 16);
+    const b = parseInt(clean.substring(4, 6), 16);
+    if (!isNaN(r) && !isNaN(g) && !isNaN(b)) return [r, g, b];
+  }
+  return [79, 70, 229];
+}
 
 // In-memory cache for generated PDF and Image files per invoice version
 const pdfCache = new Map<string, { file: File; blob: Blob; doc: jsPDF }>();
@@ -77,9 +91,11 @@ export function formatInvoiceMessageTemplate(
   invoice: Invoice,
   business: Business,
   party?: Party,
-  viewLink?: string
+  viewLink?: string,
+  printSettings?: PrintSettings
 ): string {
-  const customerName = invoice.partyName || party?.name || 'Customer';
+  const showCustomer = printSettings?.showCustomerName !== false;
+  const customerName = showCustomer ? (invoice.partyName || party?.name || 'Customer') : 'Customer';
   const billNo = invoice.number || 'BILL';
   const total = (invoice.total / 100).toLocaleString('en-IN', {
     maximumFractionDigits: 2,
@@ -90,7 +106,7 @@ export function formatInvoiceMessageTemplate(
     maximumFractionDigits: 2,
     minimumFractionDigits: due % 100 !== 0 ? 2 : 0,
   });
-  const shopName = business.name || 'Shree Sweet';
+  const shopName = printSettings?.shopName || business.name || 'Shree Sweet';
   const date = invoice.date;
 
   let text = template
@@ -158,7 +174,10 @@ export function generateInvoicePdf(
     doc.text(`${printSettings.headerText || 'TAX INVOICE'} #${invoice.number}`, width / 2, y, { align: 'center' });
     y += 4;
     doc.setFont('helvetica', 'normal');
-    doc.text(`Date: ${invoice.date}  |  ${invoice.partyName}`, width / 2, y, { align: 'center', maxWidth: width - 6 });
+    const showCustomer = printSettings?.showCustomerName !== false;
+    const billedCustomer = showCustomer && invoice.partyName ? invoice.partyName : '';
+    const dateLine = billedCustomer ? `Date: ${invoice.date}  |  ${billedCustomer}` : `Date: ${invoice.date}`;
+    doc.text(dateLine, width / 2, y, { align: 'center', maxWidth: width - 6 });
     y += 5;
     doc.text('------------------------------------------------', width / 2, y, { align: 'center' });
     y += 4;
@@ -209,8 +228,9 @@ export function generateInvoicePdf(
   }
 
   // 2. Standard A4 / A5 Layout
+  const isLandscape = printSettings?.orientation === 'landscape' || printSettings?.invoiceTheme === 'LANDSCAPE';
   const paperFormat = printSettings?.paperSize === 'A5' ? 'a5' : 'a4';
-  const orientation = printSettings?.orientation || 'portrait';
+  const orientation = isLandscape ? 'landscape' : 'portrait';
   const doc = new jsPDF({
     orientation,
     unit: 'mm',
@@ -218,15 +238,17 @@ export function generateInvoicePdf(
   });
 
   const withGst = invoice.withGst ?? true;
+  const pageWidth = isLandscape ? 297 : (paperFormat === 'a5' ? 148 : 210);
+  const rightMargin = pageWidth - 14;
 
-  // Primary colors
-  const primaryColor = [79, 70, 229]; // #4F46E5 Indigo
+  // Primary colors dynamically from printSettings.accentColor
+  const primaryColor = hexToRgb(printSettings?.accentColor);
   const slateColor = [15, 23, 42];    // #0F172A Slate
   const greyColor = [100, 116, 139];  // #64748B Grey
 
   // Header Banner
   doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-  doc.rect(0, 0, 210, 8, 'F');
+  doc.rect(0, 0, pageWidth, 8, 'F');
 
   // Business Info (Left Header)
   doc.setFont('helvetica', 'bold');
@@ -259,46 +281,60 @@ export function generateInvoicePdf(
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(16);
   doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-  doc.text(docTitle, 196, 22, { align: 'right' });
+  doc.text(docTitle, rightMargin, 22, { align: 'right' });
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   doc.setTextColor(slateColor[0], slateColor[1], slateColor[2]);
-  doc.text(`Invoice No: ${invoice.number}`, 196, 30, { align: 'right' });
-  doc.text(`Date: ${formatFullDate(invoice.date)}`, 196, 35, { align: 'right' });
-  doc.text(`Due Date: ${formatFullDate(invoice.dueDate)}`, 196, 40, { align: 'right' });
+  doc.text(`Invoice No: ${invoice.number}`, rightMargin, 30, { align: 'right' });
+  doc.text(`Date: ${formatFullDate(invoice.date)}`, rightMargin, 35, { align: 'right' });
+  doc.text(`Due Date: ${formatFullDate(invoice.dueDate)}`, rightMargin, 40, { align: 'right' });
   if (invoice.stateOfSupply) {
-    doc.text(`State of Supply: ${invoice.stateOfSupply}`, 196, 45, { align: 'right' });
+    doc.text(`State of Supply: ${invoice.stateOfSupply}`, rightMargin, 45, { align: 'right' });
   }
 
   // Divider
   doc.setDrawColor(226, 232, 240);
   doc.setLineWidth(0.5);
-  doc.line(14, 49, 196, 49);
+  doc.line(14, 49, rightMargin, 49);
 
-  // Bill To / Party Details
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9.5);
-  doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-  doc.text(isSale ? 'BILLED TO (CUSTOMER):' : 'SUPPLIER DETAILS:', 14, 55);
+  // Bill To / Party Details (cleanly omitted if showCustomerName is false)
+  const showCustomer = printSettings?.showCustomerName !== false;
+  let tableStartY = 54;
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
-  doc.setTextColor(slateColor[0], slateColor[1], slateColor[2]);
-  doc.text(invoice.partyName, 14, 61, { maxWidth: 95 });
+  if (showCustomer) {
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+    doc.text(isSale ? 'BILLED TO (CUSTOMER):' : 'SUPPLIER DETAILS:', 14, 55);
 
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8.5);
-  doc.setTextColor(greyColor[0], greyColor[1], greyColor[2]);
-  const phoneToDisplay = invoice.customerPhone || party?.phone;
-  if (phoneToDisplay) {
-    doc.text(`Phone: +91 ${phoneToDisplay}`, 14, 66);
-  }
-  if (party?.address) {
-    doc.text(`Address: ${party.address}`, 14, 71, { maxWidth: 95 });
-  }
-  if (withGst && party?.gstin) {
-    doc.text(`GSTIN: ${party.gstin}`, 14, 76);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(slateColor[0], slateColor[1], slateColor[2]);
+    const cleanCustName = invoice.partyName || party?.name || 'Customer';
+    doc.text(cleanCustName, 14, 61, { maxWidth: 95 });
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(greyColor[0], greyColor[1], greyColor[2]);
+    let currCustY = 66;
+    const phoneToDisplay = (printSettings?.showCustomerPhone !== false) ? (invoice.customerPhone || party?.phone) : undefined;
+    if (phoneToDisplay) {
+      doc.text(`Phone: +91 ${phoneToDisplay}`, 14, currCustY);
+      currCustY += 5;
+    }
+    if (printSettings?.showCustomerAddress !== false && party?.address) {
+      doc.text(`Address: ${party.address}`, 14, currCustY, { maxWidth: 95 });
+      currCustY += 5;
+    }
+    if (withGst && party?.gstin) {
+      doc.text(`GSTIN: ${party.gstin}`, 14, currCustY);
+      currCustY += 5;
+    }
+    tableStartY = Math.max(currCustY + 4, 81);
+  } else {
+    // When customer name toggle is OFF, table starts immediately without white gap
+    tableStartY = 54;
   }
 
   // Items Table
@@ -349,13 +385,13 @@ export function generateInvoicePdf(
   }
 
   autoTable(doc, {
-    startY: 81,
+    startY: tableStartY,
     head: [headers],
     body: tableData,
     theme: 'grid',
     margin: { left: 14, right: 14 },
     headStyles: {
-      fillColor: [79, 70, 229],
+      fillColor: primaryColor,
       textColor: [255, 255, 255],
       fontStyle: 'bold',
       fontSize: 8.5,
@@ -391,8 +427,8 @@ export function generateInvoicePdf(
   doc.text(numberToIndianWords(paiseToRupees(invoice.total)), leftX, leftY, { maxWidth: 100 });
   leftY += 9;
 
-  // Bank Details for payment (if available)
-  if (defaultAccount && defaultAccount.type === 'BANK') {
+  // Bank Details for payment (if available & enabled)
+  if (printSettings?.showBankDetails !== false && defaultAccount && defaultAccount.type === 'BANK') {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.5);
     doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
@@ -414,8 +450,8 @@ export function generateInvoicePdf(
     leftY += 3;
   }
 
-  // Terms and Notes
-  if (invoice.notes || invoice.terms) {
+  // Terms and Notes (if enabled)
+  if (printSettings?.showTerms !== false && (invoice.notes || invoice.terms)) {
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8.5);
     doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
@@ -510,8 +546,8 @@ export function generateInvoicePdf(
   }
 
   // Right column: Totals summary COMPLETE BOX TABLE
-  const boxX = 114;
-  const boxWidth = 82; // exactly aligns with 196mm right margin
+  const boxWidth = 82;
+  const boxX = rightMargin - boxWidth;
   const colDividerX = boxX + 46; // 46mm for label, 36mm for amount
   const rowHeight = 6.4;
   const boxHeight = summaryRows.length * rowHeight;
@@ -543,7 +579,7 @@ export function generateInvoicePdf(
     if (r.isGrandTotal) {
       doc.setFillColor(238, 242, 255);
       doc.rect(boxX + 0.1, currentY + 0.1, boxWidth - 0.2, rowHeight - 0.2, 'F');
-      doc.setDrawColor(79, 70, 229);
+      doc.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2]);
       doc.setLineWidth(0.35);
       doc.line(boxX, currentY, boxX + boxWidth, currentY);
       doc.line(boxX, currentY + rowHeight, boxX + boxWidth, currentY + rowHeight);
@@ -588,8 +624,8 @@ export function generateInvoicePdf(
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
     doc.setTextColor(greyColor[0], greyColor[1], greyColor[2]);
-    doc.text(`For ${shopName}`, 196, 262, { align: 'right' });
-    doc.text('Authorized Signatory', 196, 276, { align: 'right' });
+    doc.text(`For ${shopName}`, rightMargin, 262, { align: 'right' });
+    doc.text('Authorized Signatory', rightMargin, 276, { align: 'right' });
   }
 
   doc.setFontSize(7.5);
@@ -994,7 +1030,8 @@ export async function generateInvoiceImageFile(
   invoice: Invoice,
   business: Business,
   party?: Party,
-  printSettings?: PrintSettings
+  printSettings?: PrintSettings,
+  qrDataUrl?: string | null
 ): Promise<File> {
   const cleanInvNo = (invoice.number || 'BILL')
     .replace(/[^a-zA-Z0-9.-]/g, '-')
@@ -1011,104 +1048,26 @@ export async function generateInvoiceImageFile(
   if (cached) return cached;
 
   if (typeof document !== 'undefined') {
-    const shopName = printSettings?.shopName || business.name || 'Shree Sweet';
-    const partyName = invoice.partyName || party?.name || 'Customer';
-    const dueAmount = Math.max(0, invoice.total - invoice.paidAmount);
+    const renderedHtml = renderInvoiceThemeHtml({
+      invoice,
+      business,
+      party,
+      settings: printSettings || DEFAULT_PRINT_SETTINGS,
+      qrDataUrl,
+    });
+
+    const isThermal = printSettings?.paperSize === '58mm' || printSettings?.paperSize === '80mm';
+    const isLandscape = printSettings?.orientation === 'landscape' || printSettings?.invoiceTheme === 'LANDSCAPE';
+    const width = isThermal ? (printSettings?.paperSize === '58mm' ? '380px' : '520px') : (isLandscape ? '1120px' : '794px');
 
     const container = document.createElement('div');
     container.style.position = 'fixed';
     container.style.left = '-9999px';
     container.style.top = '-9999px';
-    container.style.width = '794px';
+    container.style.width = width;
     container.style.backgroundColor = '#ffffff';
-    container.style.color = '#0f172a';
-    container.style.fontFamily = 'system-ui, -apple-system, sans-serif';
-    container.style.padding = '36px';
-    container.style.boxSizing = 'border-box';
-
-    const linesHtml = invoice.lines.map((l, i) => `
-      <tr style="border-bottom: 1px solid #e2e8f0; font-size: 13px;">
-        <td style="padding: 10px 8px; text-align: center;">${i + 1}</td>
-        <td style="padding: 10px 8px; font-weight: 600;">${l.itemName}</td>
-        <td style="padding: 10px 8px; text-align: center;">${l.qty} ${l.unit}</td>
-        <td style="padding: 10px 8px; text-align: right;">₹${(l.rate / 100).toFixed(2)}</td>
-        <td style="padding: 10px 8px; text-align: right; font-weight: 700;">₹${(l.amount / 100).toFixed(2)}</td>
-      </tr>
-    `).join('');
-
-    container.innerHTML = `
-      <div style="border-bottom: 4px solid #4f46e5; padding-bottom: 16px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: flex-start;">
-        <div>
-          <h1 style="margin: 0; font-size: 26px; font-weight: 800; color: #1e1b4b;">${shopName}</h1>
-          <p style="margin: 4px 0 0; font-size: 13px; color: #64748b;">${business.address || ''} | Mob: +91 ${business.phone || ''}</p>
-          ${business.gstin ? `<p style="margin: 2px 0 0; font-size: 12px; color: #4338ca; font-weight: bold;">GSTIN: ${business.gstin}</p>` : ''}
-        </div>
-        <div style="text-align: right;">
-          <span style="font-size: 20px; font-weight: 800; color: #4f46e5; text-transform: uppercase;">TAX INVOICE</span>
-          <p style="margin: 4px 0 0; font-size: 13px; font-weight: 600;">#${invoice.number}</p>
-          <p style="margin: 2px 0 0; font-size: 12px; color: #64748b;">Date: ${formatFullDate(invoice.date)}</p>
-        </div>
-      </div>
-
-      <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 18px; margin-bottom: 24px;">
-        <span style="font-size: 11px; font-weight: 700; color: #6366f1; text-transform: uppercase; letter-spacing: 0.5px;">BILLED TO</span>
-        <h3 style="margin: 4px 0 0; font-size: 17px; font-weight: 700; color: #0f172a;">${partyName}</h3>
-        <p style="margin: 2px 0 0; font-size: 13px; color: #64748b;">Phone: +91 ${invoice.customerPhone || party?.phone || 'N/A'}</p>
-      </div>
-
-      <table style="width: 100%; border-collapse: collapse; margin-bottom: 24px;">
-        <thead>
-          <tr style="background-color: #4f46e5; color: #ffffff; font-size: 12px; text-transform: uppercase;">
-            <th style="padding: 10px 8px; width: 40px; text-align: center;">#</th>
-            <th style="padding: 10px 8px; text-align: left;">Item Description</th>
-            <th style="padding: 10px 8px; width: 100px; text-align: center;">Qty</th>
-            <th style="padding: 10px 8px; width: 100px; text-align: right;">Rate</th>
-            <th style="padding: 10px 8px; width: 120px; text-align: right;">Amount</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${linesHtml}
-        </tbody>
-      </table>
-
-      <div style="display: flex; justify-content: flex-end; margin-bottom: 24px;">
-        <div style="width: 280px; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px; background-color: #f8fafc;">
-          <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px;">
-            <span>Subtotal:</span>
-            <span>₹${(invoice.subtotal / 100).toFixed(2)}</span>
-          </div>
-          ${invoice.taxTotal > 0 ? `
-          <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px; color: #4338ca;">
-            <span>GST / Tax:</span>
-            <span>₹${(invoice.taxTotal / 100).toFixed(2)}</span>
-          </div>` : ''}
-          <div style="border-top: 1px solid #cbd5e1; padding-top: 8px; margin-top: 6px; display: flex; justify-content: space-between; font-size: 16px; font-weight: 800; color: #0f172a;">
-            <span>Grand Total:</span>
-            <span style="color: #4f46e5;">₹${(invoice.total / 100).toFixed(2)}</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; font-size: 13px; margin-top: 6px; color: #16a34a; font-weight: 600;">
-            <span>Paid Amount:</span>
-            <span>₹${(invoice.paidAmount / 100).toFixed(2)}</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; font-size: 14px; margin-top: 4px; font-weight: 700; color: ${dueAmount > 0 ? '#dc2626' : '#16a34a'};">
-            <span>Balance Due:</span>
-            <span>₹${(dueAmount / 100).toFixed(2)}</span>
-          </div>
-        </div>
-      </div>
-
-      <div style="border-top: 1px solid #e2e8f0; padding-top: 16px; display: flex; justify-content: space-between; align-items: flex-end; color: #64748b; font-size: 12px;">
-        <div>
-          <p style="margin: 0; font-weight: 600; color: #475569;">${printSettings?.footerText || 'Thank you for your business!'}</p>
-          <p style="margin: 2px 0 0;">Generated via Ledgerly</p>
-        </div>
-        <div style="text-align: right;">
-          <p style="margin: 0; font-weight: 600; color: #0f172a;">For ${shopName}</p>
-          <div style="height: 35px;"></div>
-          <p style="margin: 0; border-top: 1px dashed #cbd5e1; padding-top: 4px;">Authorized Signatory</p>
-        </div>
-      </div>
-    `;
+    container.style.zIndex = '-999';
+    container.innerHTML = renderedHtml;
 
     document.body.appendChild(container);
     try {
@@ -1131,6 +1090,39 @@ export async function generateInvoiceImageFile(
   }
 
   return new File([new Blob()], fileName, { type: 'image/jpeg' });
+}
+
+/**
+ * Trigger browser print dialog using the selected invoice theme HTML
+ */
+export function printInvoiceThemedHtml(
+  invoice: Invoice,
+  business: Business,
+  party?: Party,
+  account?: Account,
+  printSettings?: PrintSettings,
+  qrDataUrl?: string | null
+): void {
+  if (typeof window === 'undefined') return;
+  const html = renderInvoiceThemeHtml({
+    invoice,
+    business,
+    party,
+    account,
+    settings: printSettings || DEFAULT_PRINT_SETTINGS,
+    qrDataUrl,
+  });
+
+  const printWindow = window.open('', '_blank');
+  if (printWindow) {
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => {
+      printWindow.print();
+    }, 450);
+  }
 }
 
 /**
@@ -1199,8 +1191,8 @@ export async function shareBillPdfFile({
 
   // Handle IMAGE format
   if (format === 'IMAGE') {
-    const imgFile = await generateInvoiceImageFile(invoice, business, party, printSettings);
-    const caption = formatInvoiceMessageTemplate(templateToUse, invoice, business, party);
+    const imgFile = await generateInvoiceImageFile(invoice, business, party, printSettings, qrDataUrl);
+    const caption = formatInvoiceMessageTemplate(templateToUse, invoice, business, party, undefined, printSettings);
 
     if (forceNativeSheet) {
       const shareRes = await shareDocument({
@@ -1254,7 +1246,7 @@ export async function shareBillPdfFile({
     setCachedInvoicePdf(invoice.id, invoice.updatedAt, { file: pdfFile, blob: pdfBlob, doc });
   }
 
-  const caption = formatInvoiceMessageTemplate(templateToUse, invoice, business, party);
+  const caption = formatInvoiceMessageTemplate(templateToUse, invoice, business, party, undefined, printSettings);
 
   // 1. Native Sharing Sheet if requested (Android Chooser or Web Share API)
   if (forceNativeSheet) {

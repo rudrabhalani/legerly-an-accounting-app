@@ -7,9 +7,11 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // Expose AndroidPdfSharer directly to WebView JavaScript context
+        // Expose native bridge directly to WebView JavaScript context
         if (getBridge() != null && getBridge().getWebView() != null) {
-            getBridge().getWebView().addJavascriptInterface(new AndroidPdfSharer(this), "AndroidPdfSharer");
+            AndroidPdfSharer nativeBridge = new AndroidPdfSharer(this);
+            getBridge().getWebView().addJavascriptInterface(nativeBridge, "AndroidPdfSharer");
+            getBridge().getWebView().addJavascriptInterface(nativeBridge, "AndroidNativeBridge");
         }
     }
 }

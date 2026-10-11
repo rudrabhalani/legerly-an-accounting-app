@@ -31,6 +31,7 @@ export const DesktopSidebar: React.FC = () => {
   const openPaymentIn = useLedgerlyStore((state) => state.openPaymentIn);
   const openPaymentOut = useLedgerlyStore((state) => state.openPaymentOut);
   const openExpenseModal = useLedgerlyStore((state) => state.openExpenseModal);
+  const openPurchaseModal = useLedgerlyStore((state) => state.openPurchaseModal);
   const openSettings = useLedgerlyStore((state) => state.openSettings);
   const openRemindersModal = useLedgerlyStore((state) => state.openRemindersModal);
   const reminders = useLedgerlyStore((state) => state.reminders);
@@ -208,11 +209,34 @@ export const DesktopSidebar: React.FC = () => {
             <div className="pl-9 pr-2 py-1 space-y-1">
               <button
                 type="button"
-                onClick={() => openInvoiceScreen('PURCHASE')}
+                onClick={() => setActiveTab('purchase')}
+                className="w-full text-left py-1.5 px-2 rounded-lg text-xs font-semibold text-[#60A5FA] hover:text-white hover:bg-[#1E293B] flex items-center justify-between"
+              >
+                <span>Purchase Section (All Bills)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => openPurchaseModal('PURCHASE_IN')}
                 className="w-full text-left py-1.5 px-2 rounded-lg text-xs font-semibold text-gray-300 hover:text-white hover:bg-[#1E293B] flex items-center justify-between"
               >
-                <span>Purchase Bills</span>
-                <span className="text-[10px] text-gray-400">Alt+P</span>
+                <span>+ Purchase In</span>
+                <span className="text-[10px] text-gray-400">Goods Bought</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => openPurchaseModal('PURCHASE_OUT')}
+                className="w-full text-left py-1.5 px-2 rounded-lg text-xs font-semibold text-gray-300 hover:text-white hover:bg-[#1E293B] flex items-center justify-between"
+              >
+                <span>+ Purchase Return</span>
+                <span className="text-[10px] text-gray-400">Return Out</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => openPurchaseModal('DEBIT_NOTE')}
+                className="w-full text-left py-1.5 px-2 rounded-lg text-xs font-semibold text-gray-300 hover:text-white hover:bg-[#1E293B] flex items-center justify-between"
+              >
+                <span>+ Debit Note</span>
+                <span className="text-[10px] text-gray-400">Rebate</span>
               </button>
               <button
                 type="button"
@@ -220,20 +244,6 @@ export const DesktopSidebar: React.FC = () => {
                 className="w-full text-left py-1.5 px-2 rounded-lg text-xs font-semibold text-gray-300 hover:text-white hover:bg-[#1E293B]"
               >
                 Payment Out
-              </button>
-              <button
-                type="button"
-                onClick={() => openInvoiceScreen('PURCHASE_ORDER')}
-                className="w-full text-left py-1.5 px-2 rounded-lg text-xs font-semibold text-gray-300 hover:text-white hover:bg-[#1E293B]"
-              >
-                Purchase Order
-              </button>
-              <button
-                type="button"
-                onClick={() => openInvoiceScreen('PURCHASE_RETURN')}
-                className="w-full text-left py-1.5 px-2 rounded-lg text-xs font-semibold text-gray-300 hover:text-white hover:bg-[#1E293B]"
-              >
-                Purchase Return
               </button>
             </div>
           )}
